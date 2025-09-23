@@ -2589,8 +2589,10 @@ async def proxy_handler(request):
                 'url': target_url,
                 'headers': mutable_forward_headers,
                 'allow_redirects': False,
-                'ssl': False,
+                'ssl': True,
                 'auto_decompress': True,
+                'timeout': 30,  # Add timeout to prevent hanging requests
+                'verify_ssl': False,  # Disable SSL verification for consistency
             }
             
             # Only add data parameter for methods that typically have a body
@@ -2623,13 +2625,149 @@ async def proxy_handler(request):
             else:
                 debug_log("No proxy configuration available for this request", "DEBUG")
             
+            # ===== COMPREHENSIVE DEBUG LOGGING FOR FINAL REQUEST =====
+            debug_log("🚀🚀🚀🚀🚀🚀 FINAL REQUEST DEBUG INFO 🚀🚀🚀🚀🚀🚀", "INFO")
+            debug_log("=" * 80, "INFO")
+            
+            # 1. Request Method and URL
+            debug_log(f"📋 REQUEST METHOD: {request.method}", "INFO")
+            debug_log(f"🌐 TARGET URL: {target_url}", "INFO")
+            debug_log(f"🔗 FULL REQUEST URL: {request_kwargs.get('url', 'N/A')}", "INFO")
+            
+            # 2. Request Headers (Key Headers Only)
+            headers = request_kwargs.get('headers', {})
+            debug_log(f"📝 REQUEST HEADERS ({len(headers)} total):", "INFO")
+            key_headers = ['Host', 'User-Agent', 'Accept', 'Accept-Encoding', 'Accept-Language', 
+                          'Content-Type', 'Content-Length', 'Authorization', 'Cookie', 'Referer', 
+                          'Origin', 'X-Forwarded-For', 'X-Real-IP']
+            
+            for header_name in key_headers:
+                if header_name in headers:
+                    value = headers[header_name]
+                    # Truncate long values for readability
+                    if isinstance(value, str) and len(value) > 100:
+                        value = value[:100] + "... (truncated)"
+                    debug_log(f"   {header_name}: {value}", "INFO")
+            
+            # Show count of other headers
+            other_headers = [h for h in headers.keys() if h not in key_headers]
+            if other_headers:
+                debug_log(f"   ... and {len(other_headers)} other headers: {', '.join(other_headers[:5])}{'...' if len(other_headers) > 5 else ''}", "INFO")
+            
+            # 3. Request Body Information
+            request_data = request_kwargs.get('data')
+            if request_data:
+                debug_log(f"📦 REQUEST BODY:", "INFO")
+                debug_log(f"   Size: {len(request_data)} bytes", "INFO")
+                debug_log(f"   Type: {type(request_data).__name__}", "INFO")
+                
+                # Try to show content preview for text data
+                if isinstance(request_data, bytes):
+                    try:
+                        preview = request_data[:200].decode('utf-8')
+                        if len(request_data) > 200:
+                            preview += "... (truncated)"
+                        debug_log(f"   Preview: {preview}", "INFO")
+                    except UnicodeDecodeError:
+                        debug_log(f"   Preview: [Binary data - {len(request_data)} bytes]", "INFO")
+                elif isinstance(request_data, str):
+                    preview = request_data[:200]
+                    if len(request_data) > 200:
+                        preview += "... (truncated)"
+                    debug_log(f"   Preview: {preview}", "INFO")
+            else:
+                debug_log(f"📦 REQUEST BODY: None", "INFO")
+            
+            # 4. Proxy Configuration Details
+            if proxy_config:
+                debug_log(f"🔀 PROXY CONFIGURATION:", "INFO")
+                debug_log(f"   Type: {proxy_config.get('type', 'N/A')}", "INFO")
+                debug_log(f"   URL: {proxy_config.get('url', 'N/A')}", "INFO")
+                debug_log(f"   Host: {proxy_config.get('host', 'N/A')}", "INFO")
+                debug_log(f"   Port: {proxy_config.get('port', 'N/A')}", "INFO")
+                if proxy_config.get('username'):
+                    debug_log(f"   Username: {proxy_config.get('username', 'N/A')}", "INFO")
+                    debug_log(f"   Password: {'*' * len(proxy_config.get('password', '')) if proxy_config.get('password') else 'N/A'}", "INFO")
+            else:
+                debug_log(f"🔀 PROXY CONFIGURATION: None (Direct Connection)", "INFO")
+            
+            # 5. Request Parameters Summary
+            debug_log(f"⚙️  REQUEST PARAMETERS:", "INFO")
+            debug_log(f"   Allow Redirects: {request_kwargs.get('allow_redirects', 'N/A')}", "INFO")
+            debug_log(f"   SSL Verification: {request_kwargs.get('ssl', 'N/A')}", "INFO")
+            debug_log(f"   Verify SSL: {request_kwargs.get('verify_ssl', 'N/A')}", "INFO")
+            debug_log(f"   Auto Decompress: {request_kwargs.get('auto_decompress', 'N/A')}", "INFO")
+            debug_log(f"   Timeout: {request_kwargs.get('timeout', 'N/A')} seconds", "INFO")
+            
+            # 5.1. Request Type Information
+            session_cookie = request.get('session_cookie')
+            url_path = str(request.rel_url)
+            proxy_auth_path = matching_phishlet.get('proxy_auth', '') if matching_phishlet else ''
+            is_proxy_auth_request = url_path == proxy_auth_path
+            debug_log(f"🔍 REQUEST TYPE ANALYSIS:", "INFO")
+            debug_log(f"   URL Path: {url_path}", "INFO")
+            debug_log(f"   Proxy Auth Path: {proxy_auth_path}", "INFO")
+            debug_log(f"   Is Proxy Auth Request: {is_proxy_auth_request}", "INFO")
+            debug_log(f"   Has Session Cookie: {bool(session_cookie)}", "INFO")
+            debug_log(f"   Session Cookie: {session_cookie[:8] + '...' if session_cookie else 'None'}", "INFO")
+            
+            # 6. Phishlet Information
+            if matching_phishlet:
+                debug_log(f"🎣 PHISHLET INFORMATION:", "INFO")
+                debug_log(f"   Name: {matching_phishlet.get('name', 'N/A')}", "INFO")
+                debug_log(f"   Proxy Domain: {matching_phishlet.get('proxy_domain', 'N/A')}", "INFO")
+                debug_log(f"   Target URL: {matching_phishlet.get('target_url', 'N/A')}", "INFO")
+                hosts_count = len(matching_phishlet.get('hosts_to_proxy', []))
+                debug_log(f"   Hosts to Proxy: {hosts_count} configured", "INFO")
+            else:
+                debug_log(f"🎣 PHISHLET INFORMATION: None", "INFO")
+            
+            # 7. Session Information
+            debug_log(f"🔧 SESSION INFORMATION:", "INFO")
+            debug_log(f"   Session Type: {type(session).__name__}", "INFO")
+            debug_log(f"   Session Closed: {session.closed}", "INFO")
+            
+            debug_log("=" * 80, "INFO")
+            debug_log("🚀🚀🚀🚀🚀🚀 END FINAL REQUEST DEBUG INFO 🚀🚀🚀🚀🚀🚀", "INFO")
+            debug_log("", "INFO")  # Empty line for readability
+            
+            # Record start time for request timing
+            import time
+            request_start_time = time.time()
+            debug_log(f"⏱️  REQUEST START TIME: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(request_start_time))}", "INFO")
+            
             async with session.request(**request_kwargs) as resp:
+                # Calculate request duration
+                request_end_time = time.time()
+                request_duration = request_end_time - request_start_time
+                
                 debug_log("---------🍄🍄🍄🍄🍄🍄 responce started 🍄🍄🍄🍄🍄🍄------", "INFO")
+                debug_log(f"⏱️  REQUEST DURATION: {request_duration:.3f} seconds", "INFO")
+                debug_log(f"⏱️  REQUEST END TIME: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(request_end_time))}", "INFO")
                 debug_log(f"Upstream response status: {resp.status}", "INFO")
                 if proxy_config:
                     debug_log(f"✅ Request completed through proxy: {proxy_config['url']}", "INFO")
                 else:
                     debug_log("✅ Request completed directly (no proxy)", "INFO")
+                # Enhanced response debug information
+                debug_log("📥 RESPONSE DEBUG INFO:", "INFO")
+                debug_log(f"   Status Code: {resp.status}", "INFO")
+                debug_log(f"   Reason: {resp.reason}", "INFO")
+                debug_log(f"   Content-Type: {resp.headers.get('Content-Type', 'N/A')}", "INFO")
+                debug_log(f"   Content-Length: {resp.headers.get('Content-Length', 'N/A')}", "INFO")
+                debug_log(f"   Server: {resp.headers.get('Server', 'N/A')}", "INFO")
+                debug_log(f"   Date: {resp.headers.get('Date', 'N/A')}", "INFO")
+                
+                # Show count of response headers
+                response_headers_count = len(resp.headers)
+                debug_log(f"   Total Response Headers: {response_headers_count}", "INFO")
+                
+                # Show Link header count specifically
+                link_headers = resp.headers.getall('Link', [])
+                debug_log(f"   Link Headers Count: {len(link_headers)}", "INFO")
+                if link_headers:
+                    debug_log(f"   Link Headers: {link_headers}", "DEBUG")
+                
                 # debug_log(f"Upstream response headers: {dict(resp.headers)}", "DEBUG")  # Commented out to reduce noise
                 
                 # Debug: Log static file response details
@@ -2904,8 +3042,19 @@ async def proxy_handler(request):
                     overlap = max(0, max_key_len - 1)
                     debug_log(f"Max key length: {max_key_len}, overlap: {overlap}", "DEBUG")
                     
-                    # Create the stream response with the fully patched headers
-                    stream_response = web.StreamResponse(status=resp.status, headers=patched_headers)
+                    # Create the stream response and handle multiple headers properly
+                    stream_response = web.StreamResponse(status=resp.status)
+                    
+                    # Set headers individually to handle multiple values properly
+                    for key, value in patched_headers.items():
+                        if isinstance(value, list):
+                            # Multiple values for this header (e.g., multiple Link headers)
+                            for v in value:
+                                stream_response.headers.add(key, v)
+                            debug_log(f"Added multiple {key} headers: {len(value)} values", "DEBUG")
+                        else:
+                            # Single value for this header
+                            stream_response.headers[key] = value
                     
                     # Add session cookie to response if we have session info
                     if hasattr(request, 'get') and request.get('session_cookie'):
@@ -3204,13 +3353,63 @@ async def proxy_handler(request):
 
     except Exception as e:
         debug_log("----------🥖🥖🥖🥖🥖 request end 🥖🥖🥖🥖🥖------------", "INFO")
-        debug_log(f"Proxy Error: {e}", "ERROR")
-        debug_log(f"Traceback: {traceback.format_exc()}", "DEBUG")
+        debug_log("🚨🚨🚨🚨🚨 PROXY ERROR DEBUG INFO 🚨🚨🚨🚨🚨", "ERROR")
+        debug_log("=" * 80, "ERROR")
         
-        # Debug: Log if this was a static file request
+        # Enhanced error information
+        debug_log(f"❌ ERROR TYPE: {type(e).__name__}", "ERROR")
+        debug_log(f"❌ ERROR MESSAGE: {str(e)}", "ERROR")
+        debug_log(f"❌ ERROR MODULE: {e.__class__.__module__}", "ERROR")
+        
+        # Request context information
+        debug_log("📋 REQUEST CONTEXT AT ERROR:", "ERROR")
+        debug_log(f"   Method: {request.method if 'request' in locals() else 'N/A'}", "ERROR")
+        debug_log(f"   URL: {str(request.url) if 'request' in locals() else 'N/A'}", "ERROR")
+        debug_log(f"   Incoming Host: {incoming_host if 'incoming_host' in locals() else 'N/A'}", "ERROR")
+        debug_log(f"   Target Host: {target_host if 'target_host' in locals() else 'N/A'}", "ERROR")
+        debug_log(f"   Target URL: {target_url if 'target_url' in locals() else 'N/A'}", "ERROR")
+        
+        # Phishlet information
+        if 'matching_phishlet' in locals() and matching_phishlet:
+            debug_log(f"   Phishlet: {matching_phishlet.get('name', 'N/A')}", "ERROR")
+            debug_log(f"   Proxy Domain: {matching_phishlet.get('proxy_domain', 'N/A')}", "ERROR")
+        else:
+            debug_log(f"   Phishlet: None", "ERROR")
+        
+        # Proxy configuration
+        if 'proxy_config' in locals() and proxy_config:
+            debug_log(f"   Proxy Type: {proxy_config.get('type', 'N/A')}", "ERROR")
+            debug_log(f"   Proxy URL: {proxy_config.get('url', 'N/A')}", "ERROR")
+        else:
+            debug_log(f"   Proxy Config: None", "ERROR")
+        
+        # Session information
+        if 'session_cookie' in locals():
+            debug_log(f"   Session Cookie: {session_cookie[:20] + '...' if len(session_cookie) > 20 else session_cookie}", "ERROR")
+        else:
+            debug_log(f"   Session Cookie: N/A", "ERROR")
+        
+        # Static file information
         if 'is_static_file' in locals() and is_static_file:
             debug_log(f"❌ STATIC FILE PROXY ERROR: {url_path if 'url_path' in locals() else 'Unknown'}", "ERROR")
-            debug_log(f"   Error occurred during proxy handling", "ERROR")
+            debug_log(f"   Error occurred during static file handling", "ERROR")
+            debug_log(f"   File Extension: {url_path.split('.')[-1] if 'url_path' in locals() and '.' in url_path else 'N/A'}", "ERROR")
+        
+        # Timing information
+        if 'request_start_time' in locals():
+            import time
+            error_time = time.time()
+            duration = error_time - request_start_time
+            debug_log(f"⏱️  ERROR TIMING:", "ERROR")
+            debug_log(f"   Request Duration: {duration:.3f} seconds", "ERROR")
+            debug_log(f"   Error Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(error_time))}", "ERROR")
+        
+        # Full traceback
+        debug_log("📚 FULL TRACEBACK:", "ERROR")
+        debug_log(f"{traceback.format_exc()}", "ERROR")
+        
+        debug_log("=" * 80, "ERROR")
+        debug_log("🚨🚨🚨🚨🚨 END PROXY ERROR DEBUG INFO 🚨🚨🚨🚨🚨", "ERROR")
         
         return web.Response(text=f"Proxy Error: {e}", status=500)
 
