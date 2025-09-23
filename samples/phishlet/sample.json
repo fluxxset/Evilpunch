@@ -1,31 +1,31 @@
 {
-    "name": "fluxxset.com",
+    "name": "5f5.in",
     "author": "fluxxset",
     "min_version": "1.0.0",
-    "target_url": "https://fluxxset.com",
-    "redirect_url": "https://fluxxset.com",
+    "target_url": "https://5f5.in",
+    "redirect_url": "https://5f5.in",
 
-    "proxy_domain": "xx.in",
+    "proxy_domain": "xm.in",
     "proxy_auth": "/xxx/ekfbsejhbesjhfgive",
 
     
     "hosts_to_proxy": [
         {
-            "host": "fluxxset.com",
+            "host": "5f5.in",
             "orignal_subdomain": "",
             "proxy_subdomain": "",
             "autocert": true,
             "auto_filter": true
         },
         {
-            "host": "www.fluxxset.com",
+            "host": "www.5f5.in",
             "orignal_subdomain": "www",
             "proxy_subdomain": "www",
             "autocert": true,
             "auto_filter": true
         },
         {
-            "host": "login.fluxxset.com",
+            "host": "login.5f5.in",
             "orignal_subdomain": "login",
             "proxy_subdomain": "login1",
             "autocert": true,
@@ -90,12 +90,12 @@
 
     "inject_js": [
         {
-            "host": "fluxxset.com",
+            "host": "5f5.in",
             "url": "/login",
             "js_code": "console.log('Hello, world!');"
         },
         {
-            "host": "fluxxset.com",
+            "host": "5f5.in",
             "url": "/xyz",
             "js_code": "console.log('Hello, world!');"
         }
@@ -103,8 +103,8 @@
 
 
 
-    "landing_url":"https://fluxxset.com/login",
-    "landin_host":"fluxxset.com"
+    "landing_url":"https://5f5.in/login",
+    "landing_host":"5f5.in"
 
 
 

