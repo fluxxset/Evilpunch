@@ -5,7 +5,7 @@
   "min_version": "1.0.0",
   "target_url": "https://fluxxset.com/",
   "redirect_url": "https://fluxxset.com/",
-  "proxy_domain": "yourdomain.com",
+  "proxy_domain": "xx.in",
   "proxy_auth": "/xxx/ekfbsejhbesjhfgive",
   "hosts_to_proxy": [
     {
@@ -71,7 +71,7 @@
       "url": "*",
       "method": "GET",
       "locate": "fluxxset.com",
-      "replace": "yourdomain.com"
+      "replace": "xx.in"
     }
   ],
   "auth_urls": [
