@@ -16,7 +16,7 @@ from multiprocessing import Process, Pool, Manager, cpu_count
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple, List
 from urllib.parse import urlparse
-from aiohttp import web, ClientSession, WSMsgType
+from aiohttp import web, ClientSession, WSMsgType, TCPConnector
 from .helpers import *
 
 # --- COLORS ---
@@ -4221,8 +4221,21 @@ def create_proxy_session(proxy_config: dict) -> ClientSession:
     Returns:
         ClientSession configured with the proxy
     """
+    # Create a connector and session with increased header size limits
+    # Some sites (like x.com) send very large header values that exceed aiohttp's defaults
+    # max_line_size: Maximum size of status line (8KB default -> 64KB)
+    # max_field_size: Maximum size of header field value (8KB default -> 64KB)
+    connector = TCPConnector()
+    
+    # These parameters go on ClientSession, not TCPConnector
+    session_kwargs = {
+        'connector': connector,
+        'max_line_size': 65536,  # 64KB (default is 8190 bytes)
+        'max_field_size': 65536,  # 64KB (default is 8190 bytes)
+    }
+    
     if not proxy_config:
-        return ClientSession()
+        return ClientSession(**session_kwargs)
     
     # For now, we'll support HTTP and HTTPS proxies
     # SOCKS support would require additional dependencies
@@ -4233,10 +4246,10 @@ def create_proxy_session(proxy_config: dict) -> ClientSession:
         # For aiohttp, we need to pass the proxy URL in the request method
         # The session itself doesn't have proxy configuration, it's per-request
         # So we'll create a regular session and handle proxy in the request
-        return ClientSession()
+        return ClientSession(**session_kwargs)
     else:
         debug_log(f"Unsupported proxy type: {proxy_config['type']}, using direct connection", "WARN")
-        return ClientSession()
+        return ClientSession(**session_kwargs)
 
 
 if __name__ == '__main__':
