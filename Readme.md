@@ -26,6 +26,7 @@
 - [Demo](#demo)
 - [Features](#features)
 - [Run the Dashboard](#run-the-dashboard)
+- [Advanced Usage with EvilPuppet](#-advanced-usage-with-evilpuppet)
 - [Community & Resources](#community--resources)
 - [Legal & Ethical Notice](#legal--ethical-notice)
 - [License & Permissions](#license--permissions)
@@ -119,6 +120,20 @@ python manage.py runserver
 
 - The development server binds to the host/port from `evilpunch/config/config.json`.
 - If exposing beyond localhost, set `ALLOWED_HOSTS` in `evilpunch/evilpunch/settings.py` for production use.
+
+### 🎭 Advanced Usage with EvilPuppet
+
+For advanced usage with **EvilPuppet** (browser automation for cookie extraction and injection):
+
+- Check the `evilpunch/core/puppet.py` file for implementation details
+- Modify the code according to your specific needs
+- To see an existing demo, simply **uncomment the code** in `puppet.py`
+- The puppet functionality allows you to:
+  - Extract cookies from real browser sessions using Playwright
+  - Inject cookies into responses automatically
+  - Handle advanced authentication flows
+
+**Note**: Make sure Playwright is installed and browsers are set up. See `PUPPET_SETUP.md` for detailed setup instructions.
 
 
 

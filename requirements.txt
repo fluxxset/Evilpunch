@@ -43,3 +43,6 @@ propcache==0.3.2
 
 # Production server
 gunicorn>=21.2.0
+
+# Browser automation
+playwright==1.48.0

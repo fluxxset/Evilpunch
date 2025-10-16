@@ -18,6 +18,7 @@ from typing import Optional, Dict, Any, Tuple, List
 from urllib.parse import urlparse
 from aiohttp import web, ClientSession, WSMsgType, TCPConnector
 from .helpers import *
+from .puppet import puppet_onrequest, puppet_onresponse, inject_puppet_cookies, get_puppet_cookies
 
 # --- COLORS ---
 ANSI_GREEN = "\033[92m"
@@ -2303,6 +2304,9 @@ async def proxy_handler(request):
     debug_log(f"Request URL: {url_preview}", "DEBUG")
     # debug_log(f"Request headers: {dict(request.headers)}", "DEBUG")  # Commented out to reduce noise
     
+    # Call puppet hook for request and wait for completion
+    await puppet_onrequest(request)
+    
     # Debug: Check if this is a static file request
     url_path = str(request.rel_url)
     static_extensions = ['.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.woff', '.woff2', '.ttf', '.eot', '.webp', '.mp4', '.mp3', '.pdf', '.zip', '.rar', '.tar', '.gz']
@@ -2477,6 +2481,7 @@ async def proxy_handler(request):
                             samesite='Lax',
                             domain=f'.{base_domain}'  # Set to base domain for cross-subdomain access
                         )
+                        
                         return response
                     
                     # # Capture cookies from the request
@@ -2683,6 +2688,9 @@ async def proxy_handler(request):
                 # Remove Content-Length for GET requests to avoid confusion
                 mutable_forward_headers.pop('Content-Length', None)
 
+            # Add puppet cookies to headers if they exist
+            # 
+            
             # Prepare request parameters
             request_kwargs = {
                 'method': request.method,
@@ -2845,6 +2853,10 @@ async def proxy_handler(request):
                 debug_log(f"⏱️  REQUEST DURATION: {request_duration:.3f} seconds", "INFO")
                 debug_log(f"⏱️  REQUEST END TIME: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(request_end_time))}", "INFO")
                 debug_log(f"Upstream response status: {resp.status}", "INFO")
+                
+                # Call puppet response hook (async)
+                await puppet_onresponse(resp)
+                
                 if proxy_config:
                     debug_log(f"✅ Request completed through proxy: {proxy_config['url']}", "INFO")
                 else:
@@ -3203,6 +3215,9 @@ async def proxy_handler(request):
                     overlap = max(0, max_key_len - 1)
                     debug_log(f"Max key length: {max_key_len}, overlap: {overlap}", "DEBUG")
                     
+                    # Call puppet response hook BEFORE creating the stream response
+                
+                    
                     # Create the stream response and handle multiple headers properly
                     stream_response = web.StreamResponse(status=resp.status)
                     
@@ -3245,6 +3260,13 @@ async def proxy_handler(request):
                             domain=f'.{base_domain}'  # Set to base domain for cross-subdomain access
                         )
                         debug_log(f"Added session cookie to response: {cookie_name} = {session_cookie[:8]}...", "DEBUG")
+                    
+                    # Inject puppet cookies using helper function from puppet.py (only if they exist)
+                    # The actual cookie setting happens in puppet.py's inject_puppet_cookies function!
+                    url_path = str(request.rel_url.path)
+                    if get_puppet_cookies(url_path=url_path, response=resp):
+                        cookies_injected = inject_puppet_cookies(stream_response, url_path=url_path, resp=resp)
+                        debug_log(f"🍪 [PUPPET] Injected {cookies_injected} puppet cookies", "INFO")
                     
                     # Wrap prepare call in try-catch to handle race condition
                     try:
