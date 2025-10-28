@@ -11,37 +11,75 @@
     </div>
   </div>
 
-  <!-- Session Statistics -->
-  <div class="col-md-4">
+ 
+
+
+  <!-- information Statistics -->
+  <div class="col-md-3">
     <div class="card card-dark h-100">
       <div class="card-body text-center">
-        <h2 class="h6 mb-3">Total Sessions</h2>
-        <div class="display-6 text-primary mb-2">{{ total_sessions }}</div>
-        <div class="text-secondary">All visitor sessions</div>
+        <h2 class="h6 mb-3">Total phishlets</h2>
+        <div class="display-6 text-primary mb-2">{{ total_phishlets }}</div>
       </div>
     </div>
   </div>
 
-  <div class="col-md-4">
+  <div class="col-md-3">
     <div class="card card-dark h-100">
       <div class="card-body text-center">
-        <h2 class="h6 mb-3">Captured Sessions</h2>
-        <div class="display-6 text-success mb-2">{{ captured_sessions }}</div>
-        <div class="text-secondary">Sessions with data</div>
+        <h2 class="h6 mb-3">Total domains</h2>
+        <div class="display-6 text-success mb-2">{{ total_domains }}</div>
       </div>
     </div>
   </div>
 
-  <div class="col-md-4">
+  <div class="col-md-3">
     <div class="card card-dark h-100">
       <div class="card-body text-center">
-        <h2 class="h6 mb-3">With Credentials</h2>
-        <div class="display-6 text-warning mb-2">{{ sessions_with_credentials }}</div>
-        <div class="text-secondary">Login data captured</div>
+        <h2 class="h6 mb-3">Total redirectors</h2>
+        <div class="display-6 text-warning mb-2">{{ total_redirectors }}</div>
       </div>
     </div>
   </div>
 
+  <div class="col-md-3">
+    <div class="card card-dark h-100">
+      <div class="card-body text-center">
+        <h2 class="h6 mb-3">Total proxies</h2>
+        <div class="display-6 text-warning mb-2">{{ total_proxies }}</div>
+      </div>
+    </div>
+  </div>
+ <!-- Session Statistics -->
+ <div class="col-md-4">
+  <div class="card card-dark h-100">
+    <div class="card-body text-center">
+      <h2 class="h6 mb-3">Total Sessions</h2>
+      <div class="display-6 text-primary mb-2">{{ total_sessions }}</div>
+      <div class="text-secondary">All visitor sessions</div>
+    </div>
+  </div>
+</div>
+
+<div class="col-md-4">
+  <div class="card card-dark h-100">
+    <div class="card-body text-center">
+      <h2 class="h6 mb-3">Captured Sessions</h2>
+      <div class="display-6 text-success mb-2">{{ captured_sessions }}</div>
+      <div class="text-secondary">Sessions with data</div>
+    </div>
+  </div>
+</div>
+
+<div class="col-md-4">
+  <div class="card card-dark h-100">
+    <div class="card-body text-center">
+      <h2 class="h6 mb-3">With Credentials</h2>
+      <div class="display-6 text-warning mb-2">{{ sessions_with_credentials }}</div>
+      <div class="text-secondary">Login data captured</div>
+    </div>
+  </div>
+</div>
   <!-- Recent Captured Sessions -->
   <div class="col-12">
     <div class="card card-dark">

@@ -65,11 +65,22 @@ def dashboard_view(request):
         is_captured=True
     ).select_related('phishlet').order_by('-created')[:5]
     
+
+    total_phishlets = Phishlet.objects.count()
+    total_domains = ProxyDomain.objects.count()
+    total_redirectors = Redirectors.objects.count()
+    total_proxies = Proxy.objects.count()
+    
     context = {
         'total_sessions': total_sessions,
         'captured_sessions': captured_sessions,
         'sessions_with_credentials': sessions_with_credentials,
         'recent_captured_sessions': recent_captured_sessions,
+
+        'total_phishlets': total_phishlets,
+        'total_domains': total_domains,
+        'total_redirectors': total_redirectors,
+        'total_proxies': total_proxies,
     }
     
     return render(request, 'home.html', context)
@@ -1340,6 +1351,7 @@ def notification_settings_view(request: HttpRequest) -> HttpResponse:
     except Exception as e:
         messages.error(request, f'Error loading notification settings: {str(e)}')
         return redirect('dashboard')
+
 
 
 @login_required
