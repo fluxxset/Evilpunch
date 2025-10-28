@@ -1256,53 +1256,91 @@ def test_proxy_view(request: HttpRequest) -> JsonResponse:
                 'error': 'Port must be a valid number'
             }, status=400)
         
-        # Test proxy connectivity
-        import socket
+        # Test proxy connectivity with real HTTP request
+        import requests
         import time
+        from requests.exceptions import ProxyError, Timeout, ConnectionError as RequestsConnectionError
         
         try:
-            # Create socket connection
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(10)  # 10 second timeout
+            # Build proxy URL
+            if username and password:
+                proxy_url = f"{proxy_type}://{username}:{password}@{host}:{port_num}"
+            else:
+                proxy_url = f"{proxy_type}://{host}:{port_num}"
             
-            # Attempt to connect
+            # Configuration for proxy
+            proxies = {
+                'http': proxy_url,
+                'https': proxy_url
+            }
+            
+            # Test the proxy by making a request to fluxxset.com
+            test_url = 'https://fluxxset.com'
             start_time = time.time()
-            result = sock.connect_ex((host, port_num))
-            connection_time = time.time() - start_time
             
-            sock.close()
-            
-            if result == 0:
-                # Connection successful
+            try:
+                response = requests.get(
+                    test_url,
+                    proxies=proxies,
+                    timeout=10,
+                    allow_redirects=True
+                )
+                connection_time = time.time() - start_time
+                
+                # Success - proxy is working
                 return JsonResponse({
                     'success': True,
-                    'message': f'Proxy connection successful! Connected to {host}:{port} in {connection_time:.2f}s',
+                    'message': f'Proxy test successful! Connected to {test_url} through proxy in {connection_time:.2f}s',
                     'connection_time': round(connection_time, 2),
                     'host': host,
                     'port': port_num,
-                    'proxy_type': proxy_type
-                })
-            else:
-                # Connection failed
-                return JsonResponse({
-                    'success': False,
-                    'error': f'Connection failed to {host}:{port}. Error code: {result}'
+                    'proxy_type': proxy_type,
+                    'test_url': test_url,
+                    'response_status': response.status_code,
+                    'proxy_url': f"{proxy_type}://***:***@{host}:{port_num}" if username else proxy_url
                 })
                 
-        except socket.gaierror as e:
-            return JsonResponse({
-                'success': False,
-                'error': f'Hostname resolution failed: {str(e)}'
-            })
-        except socket.timeout:
-            return JsonResponse({
-                'success': False,
-                'error': f'Connection timeout to {host}:{port}'
-            })
+            except ProxyError as e:
+                connection_time = time.time() - start_time
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Proxy authentication failed or connection error: {str(e)}',
+                    'connection_time': round(connection_time, 2),
+                    'host': host,
+                    'port': port_num
+                })
+            except Timeout:
+                connection_time = time.time() - start_time
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Request timeout after {connection_time:.2f}s. Proxy may be slow or not responding.',
+                    'connection_time': round(connection_time, 2),
+                    'host': host,
+                    'port': port_num
+                })
+            except RequestsConnectionError as e:
+                connection_time = time.time() - start_time
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Connection failed to proxy: {str(e)}',
+                    'connection_time': round(connection_time, 2),
+                    'host': host,
+                    'port': port_num
+                })
+            except Exception as e:
+                connection_time = time.time() - start_time
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Unexpected error: {str(e)}',
+                    'connection_time': round(connection_time, 2),
+                    'host': host,
+                    'port': port_num
+                })
+                
         except Exception as e:
             return JsonResponse({
                 'success': False,
-                'error': f'Connection error: {str(e)}'
+                'error': f'Connection setup error: {str(e)}'
             })
             
     except json.JSONDecodeError:

@@ -312,7 +312,7 @@ document.addEventListener('DOMContentLoaded', function() {
       password: password
     };
     
-    // Send test request (you'll need to implement this endpoint in your views)
+    // Send test request
     fetch('{% url "test_proxy" %}', {
       method: 'POST',
       headers: {
@@ -323,14 +323,60 @@ document.addEventListener('DOMContentLoaded', function() {
     })
     .then(response => response.json())
     .then(data => {
+      // Show results in modal
+      const modalTitle = document.getElementById('testResultModalTitle');
+      const modalBody = document.getElementById('testResultModalBody');
+      
       if (data.success) {
-        alert('✅ Proxy test successful! Connection established.');
+        modalTitle.innerHTML = '<i class="fas fa-check-circle text-success me-2"></i>Proxy Test Successful';
+        modalBody.innerHTML = `
+          <div class="alert alert-success">
+            <h6 class="alert-heading">✅ Connection Established!</h6>
+            <hr>
+            <p class="mb-1"><strong>Test URL:</strong> ${data.test_url || testData.host}</p>
+            <p class="mb-1"><strong>Response Status:</strong> ${data.response_status || 'OK'}</p>
+            <p class="mb-1"><strong>Connection Time:</strong> ${data.connection_time}s</p>
+            <p class="mb-0"><strong>Proxy:</strong> ${data.proxy_url || (testData.proxy_type + '://' + testData.host + ':' + testData.port)}</p>
+          </div>
+          <p class="text-muted mb-0">Your HTTPS proxy is working correctly and can connect to external websites.</p>
+        `;
       } else {
-        alert('❌ Proxy test failed: ' + (data.error || 'Connection failed'));
+        modalTitle.innerHTML = '<i class="fas fa-times-circle text-danger me-2"></i>Proxy Test Failed';
+        modalBody.innerHTML = `
+          <div class="alert alert-danger">
+            <h6 class="alert-heading">❌ Connection Failed</h6>
+            <hr>
+            <p class="mb-1"><strong>Error:</strong> ${data.error || 'Unknown error'}</p>
+            ${data.connection_time ? `<p class="mb-0"><strong>Time Elapsed:</strong> ${data.connection_time}s</p>` : ''}
+          </div>
+          <div class="alert alert-warning">
+            <strong>Possible issues:</strong>
+            <ul class="mb-0 mt-2">
+              <li>Incorrect proxy host or port</li>
+              <li>Wrong username or password</li>
+              <li>Proxy server is down or unreachable</li>
+              <li>Firewall blocking the connection</li>
+              <li>Proxy does not support HTTPS connections</li>
+            </ul>
+          </div>
+        `;
       }
+      
+      // Show modal
+      const modal = new bootstrap.Modal(document.getElementById('testResultModal'));
+      modal.show();
     })
     .catch(error => {
-      alert('❌ Proxy test failed: ' + error.message);
+      const modalTitle = document.getElementById('testResultModalTitle');
+      const modalBody = document.getElementById('testResultModalBody');
+      modalTitle.innerHTML = '<i class="fas fa-exclamation-triangle text-warning me-2"></i>Proxy Test Error';
+      modalBody.innerHTML = `
+        <div class="alert alert-danger">
+          <strong>Error:</strong> ${error.message}
+        </div>
+      `;
+      const modal = new bootstrap.Modal(document.getElementById('testResultModal'));
+      modal.show();
     })
     .finally(() => {
       // Restore button state
@@ -340,4 +386,22 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 </script>
+
+<!-- Test Result Modal -->
+<div class="modal fade" id="testResultModal" tabindex="-1" aria-labelledby="testResultModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="testResultModalTitle">Proxy Test Results</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="testResultModalBody">
+        <!-- Content will be dynamically inserted here -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
