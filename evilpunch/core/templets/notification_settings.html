@@ -17,9 +17,9 @@
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="telegram_bot_token" class="form-label">
-                                    <i class="fab fa-telegram me-2"></i>Telegram Bot Token
+                                    <i class="fab fa-telegram me-2"></i>Telegram Bot Token <button class="btn btn-sm btn-outline-info" id="showTokenButton"onclick="showToken()">Show Token</button>
                                 </label>
-                                <input type="text" 
+                                <input type="password" 
                                        class="form-control" 
                                        id="telegram_bot_token" 
                                        name="telegram_bot_token" 
@@ -222,6 +222,19 @@ function testNotification() {
             </div>
         `;
     });
+}
+
+function showToken() {
+    event.preventDefault();
+    const tokenInput = document.getElementById('telegram_bot_token');
+    const showButton = document.getElementById('showTokenButton');
+    if (tokenInput.type === 'password') {
+        tokenInput.type = 'text';
+        showButton.innerHTML = 'Hide Token';
+    } else {
+        tokenInput.type = 'password';
+        showButton.innerHTML = 'Show Token';
+    }
 }
 </script>
 {% endblock %}

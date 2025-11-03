@@ -122,7 +122,12 @@
   ],
   "landing_url": "/login",
   "landing_host": "fluxxset.com",
+
   "redirect_on_host": "fluxxset.com",
   "redirect_on_url": "/home",
-  "after_login_url": "https://fluxxset.com/home"
+  "redirect_on_param": {
+    "param": "next",
+    "value": "/xytz"
+  },
+  "after_login_url": "https://fluxxset.com/xytz"
 }
